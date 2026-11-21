@@ -465,7 +465,8 @@ async function loadApps() {
     var b4 = el('button', 'btn danger', 'Delete'); b4.onclick = function () { removeApp(a, b4); };
     var b5 = el('button', 'btn alt', 'New version'), b6 = el('button', 'btn alt', 'Features');
     b5.onclick = function () { versionDialog(a); }; b6.onclick = function () { featuresDialog(a); };
-    row.append(b1, b2, b5, b6, b3, b4); c.appendChild(row); box.appendChild(c);
+    var b7 = el('button', 'btn alt', 'Ads'); b7.onclick = function () { adsDialog(a); };
+    row.append(b1, b2, b5, b6, b7, b3, b4); c.appendChild(row); box.appendChild(c);
   });
 }
 async function build(a, release) {
@@ -489,13 +490,13 @@ function modal(title) {
   return { body: sh, close: function () { ov.remove(); } };
 }
 function textInput(val, ph) { var i = el('input'); i.type = 'text'; i.value = val || ''; if (ph) i.placeholder = ph; i.autocomplete = 'off'; return i; }
-async function getText(path) {
-  var j = await api('/repos/' + cfg.repo + '/contents/' + path + '?ref=' + encodeURIComponent(cfg.branch), { allow404: true });
+async function getText(path, repo) {
+  var j = await api('/repos/' + (repo || cfg.repo) + '/contents/' + path + (repo ? '' : '?ref=' + encodeURIComponent(cfg.branch)), { allow404: true });
   return j ? { sha: j.sha, text: unb64(j.content) } : null;
 }
-function putText(path, text, msg, sha) {
-  var body = { message: msg, content: b64(text), branch: cfg.branch }; if (sha) body.sha = sha;
-  return api('/repos/' + cfg.repo + '/contents/' + path, { method: 'PUT', body: body });
+function putText(path, text, msg, sha, repo) {
+  var body = { message: msg, content: b64(text) }; if (!repo) body.branch = cfg.branch; if (sha) body.sha = sha;
+  return api('/repos/' + (repo || cfg.repo) + '/contents/' + path, { method: 'PUT', body: body });
 }
 function bumpVer(v, kind) {
   var p = String(v || '1.0.0').split('.').map(function (n) { return parseInt(n, 10) || 0; }); while (p.length < 3) p.push(0);
@@ -572,6 +573,83 @@ async function featuresDialog(a) {
     box.append(t, d, rr);
   }
   await load();
+}
+/* ---------- ads: Unity + AdMob IDs ---------- */
+var TEST_ADMOB_APP = 'ca-app-pub-3940256099942544~3347511713';
+function cfgRepo() { return cfg.repo.split('/')[0] + '/app-config'; }
+function indentOf(t) { var m = /^\{\n( +)"/.exec(t); return m ? m[1].length : 2; }
+function adsDialog(a) {
+  var m = modal('Ads: ' + a.name), b = m.body, u = a.unity || {};
+  function field(parent, label, val, ph, hint) { parent.appendChild(el('label', null, label)); var i = textInput(val, ph); parent.appendChild(i); if (hint) parent.appendChild(el('div', 'hint', hint)); return i; }
+  function check(parent, label, on) { var l = el('label'); l.style.cssText = 'display:flex;gap:8px;align-items:center;font-weight:400'; var c = el('input'); c.type = 'checkbox'; c.checked = !!on; l.append(c, document.createTextNode(' ' + label)); parent.appendChild(l); return c; }
+  var bt = el('div'); b.appendChild(bt);
+  bt.appendChild(el('div', 'note', 'Built into the app (saved in app.json). A change here needs a new build.'));
+  var gid = field(bt, 'Unity Game ID', u.gameId, 'e.g. 6216422', 'Unity Dashboard, Monetization. Digits only.');
+  var tm = check(bt, 'Unity test mode (turn OFF for the real release)', u.testMode !== false);
+  var pi = field(bt, 'Unity interstitial placement', u.interstitial || 'Interstitial_Android');
+  var pr = field(bt, 'Unity rewarded placement', u.rewarded || 'Rewarded_Android');
+  var pb = field(bt, 'Unity banner placement', u.banner || 'Banner_Android');
+  var aid = field(bt, 'AdMob app ID', a.admobAppId, 'ca-app-pub-1234567890123456~1234567890', 'Has a ~ in it. Leave Google\'s test ID until the app is live.');
+  var rt = el('div'); b.appendChild(rt);
+  var rtNote = el('div', 'note', 'Live settings (saved in app-config, no rebuild needed). Loading…'); rt.appendChild(rtNote);
+  var en = check(rt, 'Ads enabled', false);
+  rt.appendChild(el('label', null, 'Ad network'));
+  var net = el('select'); ['unity', 'admob'].forEach(function (n) { var o = el('option', null, n); o.value = n; net.appendChild(o); }); rt.appendChild(net);
+  var bn = check(rt, 'Show a banner', false);
+  var abn = field(rt, 'AdMob banner unit ID', '', 'ca-app-pub-1234567890123456/1234567890', 'Has a / in it. Used when the network is admob.');
+  var aint = field(rt, 'AdMob interstitial unit ID', '', 'ca-app-pub-1234567890123456/1234567890');
+  var adsFile = null, adsObj = null, remoteOk = false, adsPath = a.key + '/ads.json';
+  [en, net, bn, abn, aint].forEach(function (x) { x.disabled = true; });
+  (async function () {
+    try {
+      adsFile = await getText(adsPath, cfgRepo());
+      if (!adsFile) throw new Error('404 ' + adsPath + ' not found in app-config');
+      adsObj = JSON.parse(adsFile.text); remoteOk = true;
+      en.checked = adsObj.enabled === true || adsObj.enabled === 'true'; net.value = String(adsObj.network || 'unity').toLowerCase() === 'admob' ? 'admob' : 'unity';
+      bn.checked = adsObj.banner === true || adsObj.banner === 'true'; abn.value = adsObj.admobBannerId || ''; aint.value = adsObj.admobInterstitialId || '';
+      [en, net, bn, abn, aint].forEach(function (x) { x.disabled = false; });
+      rtNote.textContent = 'Live settings (saved in app-config/' + adsPath + ', no rebuild needed).';
+    } catch (e) {
+      rtNote.className = 'note bad';
+      rtNote.textContent = 'Cannot edit the live settings: ' + (/40[134]/.test(String(e.message)) ? 'this token has no write access to ' + cfgRepo() + '. Add that repository (Contents: Read and write) to your factory-admin token, or use the app-config admin page.' : why(e));
+    }
+  })();
+  var err = el('div', 'err'); b.appendChild(err);
+  var save = btn('Save', 'big', async function () {
+    err.textContent = '';
+    var g = gid.value.trim(), ai = aid.value.trim(), ab = abn.value.trim(), ain = aint.value.trim();
+    var pls = [pi.value.trim(), pr.value.trim(), pb.value.trim()];
+    if (g && !/^\d{5,9}$/.test(g)) { err.textContent = 'Unity Game ID is digits only (about 7 digits).'; return; }
+    if (pls.some(function (x) { return !/^[A-Za-z0-9_]+$/.test(x); })) { err.textContent = 'Unity placement names use letters, numbers and _ only.'; return; }
+    if (ai && !/^ca-app-pub-\d{16}~\d{10}$/.test(ai)) { err.textContent = 'AdMob app ID looks like ca-app-pub-1234567890123456~1234567890 (with a ~).'; return; }
+    [ab, ain].forEach(function (x) { if (x && !/^ca-app-pub-\d{16}\/\d{10}$/.test(x)) err.textContent = 'AdMob unit IDs look like ca-app-pub-1234567890123456/1234567890 (with a /, not a ~).'; });
+    if (err.textContent) return;
+    var warn = [], pub = function (x) { return x.slice(11, 27); };
+    if (ai && ai !== TEST_ADMOB_APP) [ab, ain].forEach(function (x) { if (x && pub(x) !== pub(ai)) warn.push('An AdMob unit ID belongs to a different AdMob account than the app ID.'); });
+    if (ai === TEST_ADMOB_APP && (ab || ain) && [ab, ain].some(function (x) { return x && x.indexOf('3940256099942544') < 0; })) warn.push('You are using real ad unit IDs with Google\'s TEST app ID, so those ads will not load.');
+    if (ai && ai !== TEST_ADMOB_APP && [ab, ain].some(function (x) { return x && x.indexOf('3940256099942544') === 0 || x.indexOf('ca-app-pub-3940256099942544') === 0; })) warn.push('A unit ID is one of Google\'s test units.');
+    warn = warn.filter(function (w, i) { return warn.indexOf(w) === i; });
+    if (warn.length && !confirm_(warn.join('\n\n') + '\n\nSave anyway?')) return;
+    save.disabled = true; save.textContent = 'Saving…';
+    var msg = [];
+    try {
+      var ap = 'apps/' + a.key + '/app.json', f = await getText(ap);
+      if (!f) throw new Error('app.json not found');
+      var obj = JSON.parse(f.text); obj.unity = obj.unity || {};
+      obj.unity.gameId = g; obj.unity.testMode = tm.checked; obj.unity.interstitial = pls[0]; obj.unity.rewarded = pls[1]; obj.unity.banner = pls[2];
+      obj.admobAppId = ai || TEST_ADMOB_APP;
+      await putText(ap, JSON.stringify(obj, null, indentOf(f.text)) + '\n', 'Ads settings for ' + a.key, f.sha);
+      msg.push('Build settings saved: make a new build to use them.');
+      if (remoteOk) {
+        var af = await getText(adsPath, cfgRepo()), o2 = JSON.parse(af.text);
+        o2.enabled = en.checked; o2.network = net.value; o2.banner = bn.checked; o2.admobBannerId = ab; o2.admobInterstitialId = ain;
+        await putText(adsPath, JSON.stringify(o2, null, indentOf(af.text)) + '\n', 'Ads settings for ' + a.key, af.sha, cfgRepo());
+        msg.push('Live settings saved.');
+      }
+      m.close(); toast(msg.join(' ')); await loadApps();
+    } catch (e) { err.textContent = (msg.length ? msg.join(' ') + '\n' : '') + why(e); save.disabled = false; save.textContent = 'Save'; }
+  });
+  b.appendChild(save);
 }
 async function removeApp(a, b) {
   var st = (a.listing || {}).status || 'draft';

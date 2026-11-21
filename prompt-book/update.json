@@ -1,0 +1,11 @@
+{
+ "enabled": false,
+ "force": true,
+ "minVersionCode": 3,
+ "latestVersionCode": 3,
+ "latestVersionName": "3.0.0",
+ "title": "Update required",
+ "message": "A new version of Prompt Book is available. Please update to continue.",
+ "buttonText": "Update now",
+ "url": "https://play.google.com/store/apps/details?id=com.mkhanacademy.promptbookapp"
+}

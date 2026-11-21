@@ -51,6 +51,7 @@ input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-we
 .iconrow{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.iconrow canvas{width:84px;height:84px;border-radius:20px;background:var(--line)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:12px 18px;font:700 15px inherit;cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--acc),var(--acc2))}
 .btn.alt{background:var(--soft);color:var(--acc)}.btn.ghost{background:none;border:1.5px solid var(--line);color:var(--ink)}
+.btn.danger{background:none;border:1.5px solid var(--bad);color:var(--bad)}.btn.danger:hover{background:rgba(220,38,38,.1)}
 .btn:disabled{opacity:.55;cursor:default}.btn.big{width:100%;padding:15px;font-size:16px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
@@ -176,7 +177,7 @@ pre.prompt{white-space:pre-wrap;background:var(--bg);border:1px dashed var(--lin
 
     <!-- MY APPS -->
     <section id="t-apps" hidden>
-      <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">My apps</h2><button class="btn alt" id="refreshApps">Refresh</button></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">My apps</h2><span class="row"><button class="btn ghost" id="checkSetup">Check setup</button><button class="btn alt" id="refreshApps">Refresh</button></span></div>
       <div class="apps" id="appList"></div>
       <div class="note" id="appsNote" hidden></div>
       <div class="note" style="margin-top:16px">One-time setup for builds: the signing key alias <b>mka</b> must exist. On your phone run <code>scripts/make-keystore.sh mka</code>, then <code>scripts/keystore-to-secrets.sh</code>.</div>
@@ -323,51 +324,96 @@ function setProg(steps, idx, failed) {
   var ul = $('progList'); ul.textContent = '';
   steps.forEach(function (s, i) { var li = el('li', failed && i === idx ? 'fail' : i < idx ? 'done' : i === idx ? 'on' : '', s); ul.appendChild(li); });
 }
-$('createBtn').onclick = async function () {
+/* generic: start a workflow and wait for its run to finish */
+async function runWorkflow(file, inputs, tries) {
+  var t0 = Date.now() - 8000;
+  await api('/repos/' + cfg.repo + '/actions/workflows/' + file + '/dispatches', { method: 'POST', body: { ref: cfg.branch, inputs: inputs || {} }, noJson: true })
+    .then(function (r) { if (r.status !== 204) return r.text().then(function (t) { throw new Error('GitHub ' + r.status + ': ' + t.slice(0, 200)); }); });
+  var run = null;
+  for (var i = 0; i < (tries || 60); i++) {
+    await sleep(4000);
+    var rs = await api('/repos/' + cfg.repo + '/actions/workflows/' + file + '/runs?event=workflow_dispatch&per_page=5');
+    run = (rs.workflow_runs || []).filter(function (r) { return new Date(r.created_at).getTime() >= t0; })[0] || null;
+    if (run && run.status === 'completed') return run;
+  }
+  var e = new Error('It is taking long. Check the Activity tab.'); if (run) e.url = run.html_url; throw e;
+}
+function failRun(msg, run) { var e = new Error(msg); if (run) e.url = run.html_url; return e; }
+function showFail(box, e, extra) {
+  box.innerHTML = ''; box.textContent = why(e) + (e.url ? '\n' : '');
+  if (e.url) { var a = el('a', null, 'Open the failed run on GitHub'); a.href = e.url; a.target = '_blank'; a.rel = 'noopener'; box.appendChild(a); }
+  if (extra) { var r = el('div', 'row'); r.style.marginTop = '12px'; extra.forEach(function (x) { r.appendChild(x); }); box.appendChild(r); }
+}
+function setupCheck() {
+  return runWorkflow('setup-check.yml', {}, 40).then(function (run) {
+    if (run.conclusion !== 'success') throw failRun('Setup check failed: the RELEASES_TOKEN cannot write to one of the repositories (app-releases, app-config or the website). Open the run to see which one, fix the token, then try again.', run);
+    return run;
+  });
+}
+async function deleteAppKey(key) {
+  var run = await runWorkflow('delete-app.yml', { key: key }, 60);
+  if (run.conclusion !== 'success') throw failRun('Cleanup failed. Nothing is half-deleted: the workflow stops before deleting if the token cannot write.', run);
+  await loadApps();
+}
+function btn(label, cls, fn) { var b = el('button', 'btn ' + cls, label); b.type = 'button'; b.onclick = fn; return b; }
+
+async function createApp() {
   var name = $('fName').value.trim(), key = slug(name);
   $('createErr').textContent = '';
   if (!name) { $('createErr').textContent = 'Give your app a name first.'; $('fName').focus(); return; }
   if (key.length < 2) { $('createErr').textContent = 'Use letters or numbers in the name.'; return; }
-  if (apps.some(function (a) { return a.key === key; })) { $('createErr').textContent = 'An app with the id "' + key + '" already exists. Change the name a little.'; return; }
-  var steps = ['Saving your icon', 'Starting the factory', 'Creating the app project', 'Done'];
+  if (apps.some(function (a) { return a.key === key; })) {
+    showFail($('createErr'), new Error('An app with the id "' + key + '" already exists (maybe a half-created one).'), [
+      btn('Delete it and start again', 'alt', function () { resetAndCreate(key, name); })
+    ]);
+    return;
+  }
+  var steps = ['Checking the setup', 'Saving your icon', 'Starting the factory', 'Creating the app project', 'Done'];
   $('prog').hidden = false; $('done').hidden = true; $('progTitle').textContent = 'Creating ' + name + '…';
   $('createBtn').disabled = true; setProg(steps, 0);
   $('prog').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  var stage = 0;
+  var stage = 0, created = false;
   try {
+    await setupCheck();
+    stage = 1; setProg(steps, 1);
     var cv = document.createElement('canvas'); cv.width = cv.height = 512; drawIcon(cv, name, color, iconImg);
     var data = cv.toDataURL('image/png').split(',')[1];
     var path = '/repos/' + cfg.repo + '/contents/inbox/' + key + '/icon-512.png';
     var ex = await api(path + '?ref=' + encodeURIComponent(cfg.branch), { allow404: true });
     var body = { message: 'Icon for ' + key, content: data, branch: cfg.branch }; if (ex && ex.sha) body.sha = ex.sha;
     await api(path, { method: 'PUT', body: body });
-    stage = 1; setProg(steps, 1);
-    var t0 = Date.now() - 8000;
-    var inputs = { key: key, name: name, tagline: $('fTag').value.trim(), template: tmpl, color: color, description: $('fDesc').value.trim() || $('fTag').value.trim(), category: $('fCat').value, brief: $('fBrief').value.trim() };
-    await api('/repos/' + cfg.repo + '/actions/workflows/new-app.yml/dispatches', { method: 'POST', body: { ref: cfg.branch, inputs: inputs }, noJson: true })
-      .then(function (r) { if (r.status !== 204) return r.text().then(function (t) { throw new Error('GitHub ' + r.status + ': ' + t.slice(0, 200)); }); });
     stage = 2; setProg(steps, 2);
-    var run = null;
-    for (var i = 0; i < 90; i++) {
-      await sleep(4000);
-      var rs = await api('/repos/' + cfg.repo + '/actions/workflows/new-app.yml/runs?event=workflow_dispatch&per_page=5');
-      run = (rs.workflow_runs || []).filter(function (r) { return new Date(r.created_at).getTime() >= t0; })[0] || null;
-      if (run && run.status === 'completed') break;
-    }
-    if (!run || run.status !== 'completed') throw new Error('The factory is taking long. Check the Activity tab.');
-    if (run.conclusion !== 'success') { var err = new Error('The factory could not create the app (' + run.conclusion + ').'); err.url = run.html_url; throw err; }
-    setProg(steps, 4);
+    var inputs = { key: key, name: name, tagline: $('fTag').value.trim(), template: tmpl, color: color, description: $('fDesc').value.trim() || $('fTag').value.trim(), category: $('fCat').value, brief: $('fBrief').value.trim() };
+    created = true;
+    var p = runWorkflow('new-app.yml', inputs, 90);
+    setTimeout(function () { if (stage === 2) { stage = 3; setProg(steps, 3); } }, 6000);
+    var run = await p;
+    if (run.conclusion !== 'success') throw failRun('The factory could not create the app (' + run.conclusion + ').', run);
+    setProg(steps, 5);
     $('progTitle').textContent = name + ' is created';
     $('aiPrompt').textContent = 'Open my private app-factory repo (' + cfg.repo + ') and read AGENTS.md. Build the app "' + name + '" (apps/' + key + ') exactly as described in apps/' + key + '/BRIEF.md: replace the placeholder content, finish its privacy policy, then run python3 scripts/factory.py check ' + key + ' --release and tell me when it is ready to build and release.';
     $('done').hidden = false; loadApps();
   } catch (e) {
-    setProg(steps, stage, true);
-    $('createErr').innerHTML = '';
-    $('createErr').textContent = why(e) + (e.url ? '\n' : '');
-    if (e.url) { var a = el('a', null, 'Open the failed run on GitHub'); a.href = e.url; a.target = '_blank'; a.rel = 'noopener'; $('createErr').appendChild(a); }
+    setProg(steps, Math.max(stage, created ? 3 : stage), true);
+    var extra = created ? [
+      btn('Clean up and try again', 'alt', function () { resetAndCreate(key, name); }),
+      btn('Clean up only', 'ghost', function () { cleanOnly(key); })
+    ] : null;
+    showFail($('createErr'), e, extra);
   }
   $('createBtn').disabled = false;
-};
+}
+async function resetAndCreate(key, name) {
+  $('createErr').textContent = 'Cleaning up ' + key + '…'; $('createBtn').disabled = true;
+  try { await deleteAppKey(key); $('createErr').textContent = ''; $('createBtn').disabled = false; createApp(); }
+  catch (e) { $('createBtn').disabled = false; showFail($('createErr'), e); }
+}
+async function cleanOnly(key) {
+  $('createErr').textContent = 'Cleaning up ' + key + '…';
+  try { await deleteAppKey(key); $('createErr').textContent = ''; toast('Cleaned up'); $('prog').hidden = true; }
+  catch (e) { showFail($('createErr'), e); }
+}
+$('createBtn').onclick = createApp;
 function copyText(t) {
   if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(function () { toast('Copied'); }, function () { fallbackCopy(t); });
   fallbackCopy(t);
@@ -410,7 +456,8 @@ async function loadApps() {
     var row = el('div', 'row');
     var b1 = el('button', 'btn alt', 'Test build'), b2 = el('button', 'btn', 'Build & release'), b3 = el('button', 'btn ghost', 'Copy AI request');
     b1.onclick = function () { build(a, false); }; b2.onclick = function () { build(a, true); }; b3.onclick = function () { copyText(aiPromptFor(a)); };
-    row.append(b1, b2, b3); c.appendChild(row); box.appendChild(c);
+    var b4 = el('button', 'btn danger', 'Delete'); b4.onclick = function () { removeApp(a, b4); };
+    row.append(b1, b2, b3, b4); c.appendChild(row); box.appendChild(c);
   });
 }
 async function build(a, release) {
@@ -423,6 +470,20 @@ async function build(a, release) {
 }
 var pendingConfirm = null;
 function confirm_(msg) { return window.__confirmOverride ? window.__confirmOverride(msg) : window.confirm(msg); }
+async function removeApp(a, b) {
+  var st = (a.listing || {}).status || 'draft';
+  var msg = 'Delete "' + a.name + '" (' + a.key + ') from the factory, app-config and the website?\n\nThis cannot be undone.' + (st !== 'draft' ? '\n\nIts public release on app-releases is NOT removed: delete that on GitHub by hand if you want.' : '');
+  if (!confirm_(msg)) return;
+  b.disabled = true; b.textContent = 'Deleting…';
+  try { await deleteAppKey(a.key); toast('Deleted ' + a.name); }
+  catch (e) { b.disabled = false; b.textContent = 'Delete'; var n = $('appsNote'); n.hidden = false; showFail(n, e); }
+}
+$('checkSetup').onclick = async function () {
+  var n = $('appsNote'), b = $('checkSetup'); n.hidden = false; n.textContent = 'Checking the setup…'; b.disabled = true;
+  try { await setupCheck(); n.textContent = '✅ Setup is fine: the token can write to app-releases, app-config and the website.'; }
+  catch (e) { showFail(n, e); }
+  b.disabled = false;
+};
 $('refreshApps').onclick = loadApps;
 
 /* ---------- activity ---------- */

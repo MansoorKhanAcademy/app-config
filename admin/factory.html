@@ -51,6 +51,12 @@ input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-we
 .iconrow{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.iconrow canvas{width:84px;height:84px;border-radius:20px;background:var(--line)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:12px 18px;font:700 15px inherit;cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--acc),var(--acc2))}
 .btn.alt{background:var(--soft);color:var(--acc)}.btn.ghost{background:none;border:1.5px solid var(--line);color:var(--ink)}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+.sheet{background:var(--card);color:var(--ink);width:100%;max-width:560px;max-height:90vh;overflow:auto;border-radius:20px 20px 0 0;padding:18px;box-shadow:var(--shadow)}
+.sheet label{display:block;font-weight:600;margin:12px 0 5px}
+.feat{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line)}.feat:first-child{border-top:0}
+.feat span{flex:1;overflow-wrap:anywhere}.feat.done span{text-decoration:line-through;color:var(--mute)}
+.feat input{margin-top:5px;width:18px;height:18px}.feat button{border:0;background:none;color:var(--bad);font-size:18px;cursor:pointer}
 .btn.danger{background:none;border:1.5px solid var(--bad);color:var(--bad)}.btn.danger:hover{background:rgba(220,38,38,.1)}
 .btn:disabled{opacity:.55;cursor:default}.btn.big{width:100%;padding:15px;font-size:16px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
@@ -457,7 +463,9 @@ async function loadApps() {
     var b1 = el('button', 'btn alt', 'Test build'), b2 = el('button', 'btn', 'Build & release'), b3 = el('button', 'btn ghost', 'Copy AI request');
     b1.onclick = function () { build(a, false); }; b2.onclick = function () { build(a, true); }; b3.onclick = function () { copyText(aiPromptFor(a)); };
     var b4 = el('button', 'btn danger', 'Delete'); b4.onclick = function () { removeApp(a, b4); };
-    row.append(b1, b2, b3, b4); c.appendChild(row); box.appendChild(c);
+    var b5 = el('button', 'btn alt', 'New version'), b6 = el('button', 'btn alt', 'Features');
+    b5.onclick = function () { versionDialog(a); }; b6.onclick = function () { featuresDialog(a); };
+    row.append(b1, b2, b5, b6, b3, b4); c.appendChild(row); box.appendChild(c);
   });
 }
 async function build(a, release) {
@@ -470,6 +478,101 @@ async function build(a, release) {
 }
 var pendingConfirm = null;
 function confirm_(msg) { return window.__confirmOverride ? window.__confirmOverride(msg) : window.confirm(msg); }
+/* ---------- version update + feature requests ---------- */
+function modal(title) {
+  var ov = el('div', 'ov'), sh = el('div', 'sheet'), hd = el('div', 'row');
+  hd.style.justifyContent = 'space-between'; hd.style.marginBottom = '10px';
+  var h = el('h2', null, title); h.style.margin = '0';
+  var x = btn('✕', 'ghost', function () { ov.remove(); });
+  hd.append(h, x); sh.appendChild(hd); ov.appendChild(sh); document.body.appendChild(ov);
+  ov.onclick = function (e) { if (e.target === ov) ov.remove(); };
+  return { body: sh, close: function () { ov.remove(); } };
+}
+function textInput(val, ph) { var i = el('input'); i.type = 'text'; i.value = val || ''; if (ph) i.placeholder = ph; i.autocomplete = 'off'; return i; }
+async function getText(path) {
+  var j = await api('/repos/' + cfg.repo + '/contents/' + path + '?ref=' + encodeURIComponent(cfg.branch), { allow404: true });
+  return j ? { sha: j.sha, text: unb64(j.content) } : null;
+}
+function putText(path, text, msg, sha) {
+  var body = { message: msg, content: b64(text), branch: cfg.branch }; if (sha) body.sha = sha;
+  return api('/repos/' + cfg.repo + '/contents/' + path, { method: 'PUT', body: body });
+}
+function bumpVer(v, kind) {
+  var p = String(v || '1.0.0').split('.').map(function (n) { return parseInt(n, 10) || 0; }); while (p.length < 3) p.push(0);
+  if (kind === 'major') p = [p[0] + 1, 0, 0]; else if (kind === 'minor') p = [p[0], p[1] + 1, 0]; else p = [p[0], p[1], p[2] + 1];
+  return p.join('.');
+}
+function versionDialog(a) {
+  var m = modal('New version: ' + a.name), b = m.body;
+  var cur = a.versionName || '1.0.0', code = parseInt(a.versionCode, 10) || 1;
+  b.appendChild(el('div', 'hint', 'Now: v' + cur + ' (code ' + code + ')'));
+  b.appendChild(el('label', null, 'What kind of update?'));
+  var kinds = [['patch', 'Small fix'], ['minor', 'New features'], ['major', 'Big change']], kb = {}, row = el('div', 'row');
+  var vIn = textInput(bumpVer(cur, 'minor')), cIn = textInput(String(code + 1));
+  function pick(k) { Object.keys(kb).forEach(function (x) { kb[x].className = 'btn ' + (x === k ? '' : 'alt'); }); vIn.value = bumpVer(cur, k); }
+  kinds.forEach(function (k) { kb[k[0]] = btn(k[1], 'alt', function () { pick(k[0]); }); row.appendChild(kb[k[0]]); });
+  b.appendChild(row); pick('minor');
+  b.appendChild(el('label', null, 'Version name')); b.appendChild(vIn);
+  b.appendChild(el('label', null, 'Version code (must go up every release)')); b.appendChild(cIn);
+  b.appendChild(el('label', null, "What's new (one line each)"));
+  var notes = el('textarea'); notes.rows = 4; notes.placeholder = 'Fixed the tip rounding\nNew dark theme'; b.appendChild(notes);
+  var rl = el('label'); rl.style.cssText = 'display:flex;gap:8px;align-items:center;font-weight:400'; var rc = el('input'); rc.type = 'checkbox';
+  rl.append(rc, document.createTextNode(' Build and release right after saving')); b.appendChild(rl);
+  var err = el('div', 'err'); b.appendChild(err);
+  var save = btn('Save new version', 'big', async function () {
+    var vn = vIn.value.trim(), vc = parseInt(cIn.value, 10); err.textContent = '';
+    if (!/^\d+(\.\d+){1,3}$/.test(vn)) { err.textContent = 'Version name like 1.1.0'; return; }
+    if (!(vc > code)) { err.textContent = 'Version code must be higher than ' + code + '.'; return; }
+    if (vn === cur) { err.textContent = 'Version name is the same as now.'; return; }
+    save.disabled = true; save.textContent = 'Saving…';
+    try {
+      var ap = 'apps/' + a.key + '/app.json', f = await getText(ap);
+      if (!f) throw new Error('app.json not found');
+      var obj = JSON.parse(f.text); obj.versionName = vn; obj.versionCode = vc;
+      await putText(ap, JSON.stringify(obj, null, 2) + '\n', 'Version ' + vn + ' (' + vc + ') for ' + a.key, f.sha);
+      var cp = 'apps/' + a.key + '/CHANGELOG.md', c = await getText(cp);
+      var lines = notes.value.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+      var entry = '## v' + vn + ' (' + vc + ') - ' + new Date().toISOString().slice(0, 10) + '\n' + (lines.length ? lines.map(function (l) { return '- ' + l; }).join('\n') : '- Update') + '\n\n';
+      await putText(cp, '# Changelog\n\n' + entry + (c ? c.text.replace(/^# Changelog\s*/, '') : ''), 'Changelog ' + vn, c && c.sha);
+      m.close(); toast('Saved v' + vn); await loadApps();
+      if (rc.checked) { var na = apps.filter(function (x) { return x.key === a.key; })[0] || a; build(na, true); }
+    } catch (e) { err.textContent = why(e); save.disabled = false; save.textContent = 'Save new version'; }
+  });
+  b.appendChild(save);
+}
+async function featuresDialog(a) {
+  var m = modal('Features: ' + a.name), b = m.body, path = 'apps/' + a.key + '/FEATURES.md', file = null, items = [];
+  var box = el('div'); b.appendChild(box);
+  function parse(t) { items = []; (t || '').split('\n').forEach(function (l) { var k = l.match(/^- \[( |x)\] (.*)$/); if (k) items.push({ done: k[1] === 'x', text: k[2] }); }); }
+  function ser() { return '# Feature requests\n\nTick = done. The AI reads this file and builds every unchecked item.\n\n' + items.map(function (i) { return '- [' + (i.done ? 'x' : ' ') + '] ' + i.text; }).join('\n') + '\n'; }
+  async function load() { try { file = await getText(path); parse(file && file.text); } catch (e) { toast(why(e)); } draw(); }
+  async function save(msg) {
+    try { var t = ser(), r = await putText(path, t, msg + ' (' + a.key + ')', file && file.sha); file = { sha: r.content.sha, text: t }; }
+    catch (e) { toast(why(e)); await load(); }
+  }
+  function draw() {
+    box.textContent = '';
+    if (!items.length) box.appendChild(el('div', 'hint', 'No feature requests yet. Add the first one below.'));
+    items.forEach(function (it, i) {
+      var r = el('div', 'feat' + (it.done ? ' done' : '')), cb = el('input'); cb.type = 'checkbox'; cb.checked = it.done;
+      cb.onchange = async function () { it.done = cb.checked; draw(); await save('Feature ' + (it.done ? 'done' : 'reopened')); };
+      var x = el('button', null, '✕'); x.type = 'button'; x.onclick = async function () { items.splice(i, 1); draw(); await save('Remove feature'); };
+      r.append(cb, el('span', null, it.text), x); box.appendChild(r);
+    });
+    box.appendChild(el('label', null, 'New feature'));
+    var t = textInput('', 'e.g. Round tip to the nearest whole number'), d = el('textarea'); d.rows = 2; d.placeholder = 'Details (optional)';
+    var add = btn('Add feature', '', async function () {
+      var title = t.value.trim(); if (!title) { toast('Write the feature first'); return; }
+      var det = d.value.replace(/\s+/g, ' ').trim(); items.push({ done: false, text: title + (det ? ' — ' + det : '') }); draw(); await save('Add feature');
+    });
+    var cp = btn('Copy AI request', 'alt', function () {
+      copyText('Open my private app-factory repo (' + cfg.repo + ') and read AGENTS.md. Work on the app "' + a.name + '" (apps/' + a.key + '). Read apps/' + a.key + '/FEATURES.md and build every unchecked feature, tick each one ([x]) when it is done, then run python3 scripts/factory.py check ' + a.key + ' --release and tell me when it is ready for a new version and release.');
+    });
+    var rr = el('div', 'row'); rr.style.marginTop = '10px'; rr.append(add, cp);
+    box.append(t, d, rr);
+  }
+  await load();
+}
 async function removeApp(a, b) {
   var st = (a.listing || {}).status || 'draft';
   var msg = 'Delete "' + a.name + '" (' + a.key + ') from the factory, app-config and the website?\n\nThis cannot be undone.' + (st !== 'draft' ? '\n\nIts public release on app-releases is NOT removed: delete that on GitHub by hand if you want.' : '');

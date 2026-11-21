@@ -1,0 +1,13 @@
+{
+ "enabled": false,
+ "network": "unity",
+ "onStart": false,
+ "onExit": false,
+ "onCopy": true,
+ "onOpen": true,
+ "banner": false,
+ "bannerPosition": "bottom",
+ "interstitialEvery": 5,
+ "minSecondsBetween": 60,
+ "interstitialPlacement": "Interstitial_Android"
+}

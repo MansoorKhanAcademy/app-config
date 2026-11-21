@@ -1,12 +1,7 @@
 [
-  {
-    "key": "prompt-book",
-    "name": "Prompt Book",
-    "package": "com.mkhanacademy.promptbookapp"
-  },
-  {
-    "key": "build-test",
-    "name": "Build Test",
-    "package": "com.mkhanacademy.buildtest"
-  }
+ {
+  "key": "prompt-book",
+  "name": "Prompt Book",
+  "package": "com.mkhanacademy.promptbookapp"
+ }
 ]

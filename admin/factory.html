@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#4c1d95">
+<title>App Factory Admin</title>
+<style>
+:root{--bg:#f5f3ff;--ink:#1e1b3a;--mute:#6b6890;--line:#e2defa;--card:#ffffff;--acc:#7c3aed;--acc2:#4f46e5;--ok:#059669;--bad:#dc2626;--warn:#d97706;--soft:#efeafe;--shadow:0 6px 24px rgba(76,29,149,.10)}
+@media(prefers-color-scheme:dark){:root{--bg:#0f0d1f;--ink:#ece9ff;--mute:#a29fc9;--line:#2a2650;--card:#181533;--acc:#a78bfa;--acc2:#818cf8;--ok:#34d399;--bad:#f87171;--warn:#fbbf24;--soft:#221e45;--shadow:0 6px 24px rgba(0,0,0,.4)}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px 80px}
+header{background:linear-gradient(135deg,#4c1d95,#6d28d9 55%,#4f46e5);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 16px 54px}
+header .in{max-width:980px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.logo{width:42px;height:42px;border-radius:13px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:22px;flex:none}
+header h1{font-size:20px;margin:0;line-height:1.2}header small{opacity:.8;display:block;font-size:13px}
+.pill{margin-left:auto;font-size:13px;background:rgba(255,255,255,.18);border-radius:999px;padding:6px 12px;display:flex;gap:6px;align-items:center;cursor:default;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:#fca5a5}.dot.on{background:#6ee7b7}
+.pill button{all:unset;cursor:pointer;text-decoration:underline;font-size:12px;margin-left:4px}
+.tabs{display:flex;gap:6px;background:var(--card);border-radius:14px;padding:5px;box-shadow:var(--shadow);margin:-34px 0 18px;position:relative}
+.tabs button{flex:1;border:0;background:none;color:var(--mute);font:600 15px inherit;padding:11px 8px;border-radius:10px;cursor:pointer}
+.tabs button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card h2{margin:0 0 4px;font-size:18px}.card p.sub{margin:0 0 14px;color:var(--mute);font-size:14px}
+.step{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--soft);color:var(--acc);font-weight:700;font-size:14px;margin-right:8px}
+label{display:block;font-weight:600;font-size:14px;margin:14px 0 5px}
+label small{font-weight:400;color:var(--mute)}
+input[type=text],textarea,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:12px;padding:12px 13px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--acc)}
+textarea{min-height:120px;resize:vertical}
+.hint{font-size:13px;color:var(--mute);margin-top:5px}.hint b{color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.grid2{grid-template-columns:1fr}}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:18px;align-items:start}@media(max-width:820px){.layout{grid-template-columns:1fr}.phonebox{order:-1;position:static}.phone{width:210px}}
+.phonebox{position:sticky;top:12px}
+.phone{width:230px;margin:0 auto;border-radius:34px;border:8px solid #1f1b3a;background:#0f172a;overflow:hidden;box-shadow:var(--shadow)}
+.phone .bar{height:36px;display:flex;align-items:center;padding:0 14px;font-size:11px;color:#cbd5e1}
+.phone .hd{padding:10px 14px;display:flex;gap:10px;align-items:center;color:#fff}
+.phone .hd img{width:38px;height:38px;border-radius:10px}.phone .hd b{display:block;font-size:14px;line-height:1.2}.phone .hd span{font-size:11px;opacity:.8}
+.phone .bd{padding:10px 14px 24px;min-height:160px}.phone .c{background:rgba(255,255,255,.1);border-radius:12px;height:46px;margin-bottom:9px}
+.swatches{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.sw{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0;outline:2px solid var(--line)}
+.sw.on{outline:3px solid var(--ink)}
+input[type=color]{width:34px;height:34px;border:0;padding:0;background:none;border-radius:50%;overflow:hidden;cursor:pointer}
+input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-webkit-color-swatch{border:0;border-radius:50%}
+.types{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:480px){.types{grid-template-columns:1fr}}
+.type{border:2px solid var(--line);border-radius:14px;padding:12px;cursor:pointer;background:var(--bg)}
+.type.on{border-color:var(--acc);background:var(--soft)}.type b{display:block}.type span{font-size:13px;color:var(--mute)}
+.iconrow{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.iconrow canvas{width:84px;height:84px;border-radius:20px;background:var(--line)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:12px 18px;font:700 15px inherit;cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--acc),var(--acc2))}
+.btn.alt{background:var(--soft);color:var(--acc)}.btn.ghost{background:none;border:1.5px solid var(--line);color:var(--ink)}
+.btn:disabled{opacity:.55;cursor:default}.btn.big{width:100%;padding:15px;font-size:16px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.app{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:var(--shadow)}
+.app .top{display:flex;gap:12px;align-items:center}.app .ic{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;flex:none}
+.app h3{margin:0;font-size:17px;line-height:1.2}.app small{color:var(--mute)}
+.chip{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--soft);color:var(--acc);margin:10px 6px 0 0}
+.chip.ok{background:rgba(5,150,105,.14);color:var(--ok)}.chip.warn{background:rgba(217,119,6,.15);color:var(--warn)}
+.app .row{margin-top:12px}.app .btn{padding:9px 12px;font-size:13px}
+.run{display:flex;gap:10px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}.run:first-child{border-top:0}
+.run .s{width:12px;height:12px;border-radius:50%;background:var(--mute);flex:none}.run .s.ok{background:var(--ok)}.run .s.bad{background:var(--bad)}.run .s.go{background:var(--warn);animation:p 1s infinite}
+@keyframes p{50%{opacity:.35}}.run a{color:var(--acc);text-decoration:none;font-weight:600}.run small{color:var(--mute);display:block}
+.progress{list-style:none;padding:0;margin:12px 0 0}.progress li{padding:7px 0 7px 30px;position:relative;color:var(--mute)}
+.progress li:before{content:"";position:absolute;left:4px;top:11px;width:14px;height:14px;border-radius:50%;border:2px solid var(--line)}
+.progress li.on{color:var(--ink);font-weight:600}.progress li.on:before{border-color:var(--warn);animation:p 1s infinite}
+.progress li.done{color:var(--ink)}.progress li.done:before{background:var(--ok);border-color:var(--ok)}
+.progress li.fail{color:var(--bad);font-weight:600}.progress li.fail:before{background:var(--bad);border-color:var(--bad)}
+.note{border-radius:12px;padding:11px 13px;font-size:14px;background:var(--soft);margin-top:12px}.note.bad{background:rgba(220,38,38,.12);color:var(--bad)}
+.err{color:var(--bad);font-size:14px;margin-top:8px;white-space:pre-wrap}
+pre.prompt{white-space:pre-wrap;background:var(--bg);border:1px dashed var(--line);border-radius:12px;padding:12px;font:13px/1.5 ui-monospace,Menlo,monospace;margin:10px 0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#1f1b3a;color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;z-index:9;max-width:90vw}
+[hidden]{display:none!important}
+@media(max-width:820px){.phonebox{position:static;order:-1}.phone{width:210px}.phonebox .hint{margin-bottom:4px}}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <div class="logo">🏭</div>
+  <div><h1>App Factory</h1><small>Mansoor Khan Academy</small></div>
+  <div class="pill"><span class="dot" id="dot"></span><span id="pillTxt">Not connected</span><button id="outBtn" hidden>Disconnect</button></div>
+</div></header>
+
+<div class="wrap">
+  <!-- connect -->
+  <section class="card" id="connect" style="margin-top:-34px;position:relative">
+    <h2>Connect to your factory</h2>
+    <p class="sub">The token stays in this browser only and is sent only to api.github.com.</p>
+    <label>Factory repository <small>(private)</small></label>
+    <input type="text" id="cRepo" value="MansoorKhanAcademy/app-factory" autocomplete="off" autocapitalize="off">
+    <label>Branch</label>
+    <input type="text" id="cBranch" value="main" autocomplete="off" autocapitalize="off">
+    <label>Fine-grained token</label>
+    <input type="text" id="cToken" placeholder="github_pat_..." autocomplete="off" autocapitalize="off" spellcheck="false" style="-webkit-text-security:disc">
+    <div class="hint">Create it at GitHub &gt; Settings &gt; Developer settings &gt; Fine-grained tokens. <b>Only the app-factory repo</b>, permissions <b>Actions: Read and write</b> and <b>Contents: Read and write</b>. Name it "factory-admin".</div>
+    <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" id="cRemember" checked> Remember on this device</label>
+    <div class="row" style="margin-top:14px"><button class="btn" id="cBtn">Connect</button></div>
+    <div class="err" id="cErr"></div>
+  </section>
+
+  <div id="main" hidden>
+    <nav class="tabs"><button data-t="new" class="on">✨ New app</button><button data-t="apps">📱 My apps</button><button data-t="runs">⚙️ Activity</button></nav>
+
+    <!-- NEW APP -->
+    <section id="t-new">
+      <div class="layout">
+        <div>
+          <div class="card">
+            <h2><span class="step">1</span>Name your app</h2>
+            <label>App name</label>
+            <input type="text" id="fName" placeholder="e.g. Tip Calculator" maxlength="30" autocomplete="off">
+            <div class="hint" id="idHint">App id appears here</div>
+            <label>One-line tagline <small>(shown under the name)</small></label>
+            <input type="text" id="fTag" placeholder="e.g. Split any bill in seconds" maxlength="60" autocomplete="off">
+          </div>
+
+          <div class="card">
+            <h2><span class="step">2</span>Make it look right</h2>
+            <label style="margin-top:4px">Theme colour</label>
+            <div class="swatches" id="swatches"></div>
+            <label>Icon <small>(optional: square picture, we resize it)</small></label>
+            <div class="iconrow">
+              <canvas id="iconCv" width="512" height="512"></canvas>
+              <div>
+                <input type="file" id="fIcon" accept="image/*" hidden>
+                <div class="row"><button class="btn alt" id="iconBtn" type="button">Choose picture</button><button class="btn ghost" id="iconClr" type="button" hidden>Use letter icon</button></div>
+                <div class="hint">No picture? We draw a clean letter icon in your colour.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2><span class="step">3</span>What kind of app?</h2>
+            <div class="types" id="types">
+              <div class="type on" data-v="blank"><b>🛠 Tool or game</b><span>Calculator, tracker, quiz, converter, game, anything custom.</span></div>
+              <div class="type" data-v="cards"><b>🗂 List of cards</b><span>Searchable prompts, tips, recipes, ideas with categories and favourites.</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2><span class="step">4</span>What should it do?</h2>
+            <label style="margin-top:4px">Describe the app <small>(the AI builds it from this)</small></label>
+            <textarea id="fBrief" placeholder="Example: Enter the bill, choose a tip of 10, 15 or 20 percent, set how many people, and show the amount per person. Works offline, big buttons, dark theme."></textarea>
+            <div class="grid2">
+              <div><label>Short description <small>(for the website)</small></label><input type="text" id="fDesc" placeholder="A simple tip and bill splitter." maxlength="140" autocomplete="off"></div>
+              <div><label>Category</label>
+                <select id="fCat"><option>Tools</option><option>Productivity</option><option>Education</option><option>Entertainment</option><option>Games</option><option>Lifestyle</option><option>Food &amp; Drink</option><option>Finance</option><option>Business</option><option>Health &amp; Fitness</option></select></div>
+            </div>
+          </div>
+
+          <button class="btn big" id="createBtn">🚀 Create app</button>
+          <div class="err" id="createErr"></div>
+          <div class="card" id="prog" hidden style="margin-top:16px">
+            <h2 id="progTitle">Creating your app…</h2>
+            <ul class="progress" id="progList"></ul>
+            <div id="done" hidden>
+              <div class="note">✅ The app project is ready. Next: ask the AI to build it. Copy this and give it to Claude:</div>
+              <pre class="prompt" id="aiPrompt"></pre>
+              <div class="row"><button class="btn" id="copyPrompt">Copy AI request</button><button class="btn ghost" id="goApps">Go to My apps</button></div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="phonebox">
+          <div class="phone" id="phone">
+            <div class="bar"><span>9:41</span></div>
+            <div class="hd" id="phHd"><img id="phIcon" alt=""><div><b id="phName">Your App</b><span id="phTag">Your tagline</span></div></div>
+            <div class="bd"><div class="c"></div><div class="c"></div><div class="c" style="width:70%"></div></div>
+          </div>
+          <div class="hint" style="text-align:center;margin-top:8px">Live preview</div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- MY APPS -->
+    <section id="t-apps" hidden>
+      <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">My apps</h2><button class="btn alt" id="refreshApps">Refresh</button></div>
+      <div class="apps" id="appList"></div>
+      <div class="note" id="appsNote" hidden></div>
+      <div class="note" style="margin-top:16px">One-time setup for builds: the signing key alias <b>mka</b> must exist. On your phone run <code>scripts/make-keystore.sh mka</code>, then <code>scripts/keystore-to-secrets.sh</code>.</div>
+    </section>
+
+    <!-- ACTIVITY -->
+    <section id="t-runs" hidden>
+      <div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Activity</h2><button class="btn alt" id="refreshRuns">Refresh</button></div>
+      <div class="card" id="runList">Loading…</div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+'use strict';
+var $ = function (id) { return document.getElementById(id); };
+var LS = 'factoryAdminV1';
+var cfg = null, apps = [], iconBlob = null, color = '#7C3AED', tmpl = 'blank';
+var COLORS = ['#7C3AED', '#4F46E5', '#0E7490', '#059669', '#B45309', '#B91C1C', '#BE185D', '#0F172A'];
+
+function lsGet() { try { return JSON.parse(localStorage.getItem(LS) || 'null'); } catch (e) { return null; } }
+function lsSet(v) { try { v ? localStorage.setItem(LS, JSON.stringify(v)) : localStorage.removeItem(LS); } catch (e) {} }
+function toast(m) { var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 2800); }
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+function api(path, opt) {
+  opt = opt || {};
+  var h = { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  if (opt.raw) h.Accept = 'application/vnd.github.raw+json';
+  if (opt.body) h['Content-Type'] = 'application/json';
+  return fetch('https://api.github.com' + path, { method: opt.method || 'GET', headers: h, body: opt.body ? JSON.stringify(opt.body) : undefined, cache: 'no-store' })
+    .then(function (r) {
+      if (opt.noJson) return r;
+      if (r.status === 404 && opt.allow404) return null;
+      if (!r.ok) return r.text().then(function (t) { var e = new Error('GitHub ' + r.status + ': ' + t.slice(0, 200)); e.status = r.status; throw e; });
+      return opt.raw ? r.text() : r.json();
+    });
+}
+function why(e) {
+  var m = e && e.message || String(e);
+  if (/401|Bad credentials/.test(m)) return 'GitHub rejected the token (401). It may have expired: create or regenerate it and connect again.';
+  if (/403/.test(m)) return 'GitHub refused (403). The token needs Actions: Read and write and Contents: Read and write on the factory repo.';
+  if (/404/.test(m)) return 'Not found (404). Check the repository name, and that the token can access that repository.';
+  return m;
+}
+function b64(str) { var u = new TextEncoder().encode(str), s = ''; for (var i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function unb64(b) { return new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\s/g, '')), function (c) { return c.charCodeAt(0); })); }
+function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+
+/* ---------- connect ---------- */
+function showMain(on) { $('connect').hidden = on; $('main').hidden = !on; $('dot').className = 'dot' + (on ? ' on' : ''); $('pillTxt').textContent = on ? cfg.repo : 'Not connected'; $('outBtn').hidden = !on; }
+async function connect(c) {
+  cfg = c;
+  var r = await api('/repos/' + cfg.repo);
+  if (r.permissions && r.permissions.push === false) throw new Error('This token cannot write to ' + cfg.repo);
+  showMain(true);
+  loadApps(); loadRuns();
+}
+$('cBtn').onclick = async function () {
+  $('cErr').textContent = '';
+  var c = { repo: $('cRepo').value.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/+$/, ''), branch: $('cBranch').value.trim() || 'main', token: $('cToken').value.trim() };
+  if (!/^[\w.-]+\/[\w.-]+$/.test(c.repo) || !c.token) { $('cErr').textContent = 'Enter owner/name and paste the token.'; return; }
+  $('cBtn').disabled = true;
+  try { await connect(c); lsSet($('cRemember').checked ? c : null); $('cToken').value = ''; }
+  catch (e) { $('cErr').textContent = why(e); showMain(false); }
+  $('cBtn').disabled = false;
+};
+$('outBtn').onclick = function () { lsSet(null); location.reload(); };
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tabs button').forEach(function (b) {
+  b.onclick = function () { tab(b.dataset.t); };
+});
+function tab(t) {
+  document.querySelectorAll('.tabs button').forEach(function (x) { x.classList.toggle('on', x.dataset.t === t); });
+  ['new', 'apps', 'runs'].forEach(function (k) { $('t-' + k).hidden = k !== t; });
+  if (t === 'apps') loadApps(); if (t === 'runs') loadRuns();
+}
+
+/* ---------- form helpers ---------- */
+function slug(n) {
+  var s = n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30).replace(/-+$/, '');
+  if (s && !/^[a-z]/.test(s)) s = 'app-' + s;
+  return s;
+}
+function pkgOf(key) { return 'com.mkhanacademy.' + key.replace(/-/g, ''); }
+function drawIcon(cv, name, col, img) {
+  var c = cv.getContext('2d'), n = 512;
+  c.clearRect(0, 0, n, n);
+  if (img) {
+    var s = Math.min(img.width, img.height), sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+    c.drawImage(img, sx, sy, s, s, 0, 0, n, n);
+  } else {
+    c.fillStyle = col; c.fillRect(0, 0, n, n);
+    var g = c.createLinearGradient(0, 0, n, n); g.addColorStop(0, 'rgba(255,255,255,.22)'); g.addColorStop(1, 'rgba(0,0,0,.18)');
+    c.fillStyle = g; c.fillRect(0, 0, n, n);
+    c.fillStyle = '#fff'; c.font = '700 300px system-ui,-apple-system,Segoe UI,Roboto,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText((name.trim()[0] || 'A').toUpperCase(), n / 2, n / 2 + 14);
+  }
+}
+var iconImg = null;
+function refresh() {
+  var name = $('fName').value.trim(), key = slug(name);
+  $('idHint').innerHTML = key ? 'App id: <b>' + key + '</b> &nbsp;·&nbsp; package <b>' + pkgOf(key) + '</b>' : 'App id appears here';
+  $('phName').textContent = name || 'Your App';
+  $('phTag').textContent = $('fTag').value.trim() || 'Your tagline';
+  $('phHd').style.background = color; $('phone').style.background = '#0f172a';
+  drawIcon($('iconCv'), name, color, iconImg);
+  $('phIcon').src = $('iconCv').toDataURL('image/png');
+  $('iconClr').hidden = !iconImg;
+}
+['fName', 'fTag'].forEach(function (i) { $(i).addEventListener('input', refresh); });
+(function () {
+  var box = $('swatches');
+  COLORS.forEach(function (c) {
+    var b = el('button', 'sw'); b.type = 'button'; b.style.background = c; b.setAttribute('aria-label', 'colour ' + c);
+    b.onclick = function () { color = c; pick.value = c; mark(); refresh(); };
+    box.appendChild(b);
+  });
+  var pick = document.createElement('input'); pick.type = 'color'; pick.value = color; pick.setAttribute('aria-label', 'custom colour');
+  pick.oninput = function () { color = pick.value.toUpperCase(); mark(); refresh(); };
+  box.appendChild(pick);
+  function mark() { box.querySelectorAll('.sw').forEach(function (b) { b.classList.toggle('on', b.style.background && rgb2hex(b.style.background) === color.toUpperCase()); }); }
+  function rgb2hex(s) { var m = s.match(/\d+/g); return m ? '#' + m.slice(0, 3).map(function (x) { return ('0' + (+x).toString(16)).slice(-2); }).join('').toUpperCase() : s; }
+  mark(); window._mark = mark;
+})();
+$('iconBtn').onclick = function () { $('fIcon').click(); };
+$('iconClr').onclick = function () { iconImg = null; $('fIcon').value = ''; refresh(); };
+$('fIcon').onchange = function () {
+  var f = this.files[0]; if (!f) return;
+  var im = new Image(), u = URL.createObjectURL(f);
+  im.onload = function () { iconImg = im; refresh(); URL.revokeObjectURL(u); };
+  im.onerror = function () { toast('That file is not a picture'); };
+  im.src = u;
+};
+$('types').querySelectorAll('.type').forEach(function (t) {
+  t.onclick = function () { tmpl = t.dataset.v; $('types').querySelectorAll('.type').forEach(function (x) { x.classList.toggle('on', x === t); }); };
+});
+
+/* ---------- create ---------- */
+function setProg(steps, idx, failed) {
+  var ul = $('progList'); ul.textContent = '';
+  steps.forEach(function (s, i) { var li = el('li', failed && i === idx ? 'fail' : i < idx ? 'done' : i === idx ? 'on' : '', s); ul.appendChild(li); });
+}
+$('createBtn').onclick = async function () {
+  var name = $('fName').value.trim(), key = slug(name);
+  $('createErr').textContent = '';
+  if (!name) { $('createErr').textContent = 'Give your app a name first.'; $('fName').focus(); return; }
+  if (key.length < 2) { $('createErr').textContent = 'Use letters or numbers in the name.'; return; }
+  if (apps.some(function (a) { return a.key === key; })) { $('createErr').textContent = 'An app with the id "' + key + '" already exists. Change the name a little.'; return; }
+  var steps = ['Saving your icon', 'Starting the factory', 'Creating the app project', 'Done'];
+  $('prog').hidden = false; $('done').hidden = true; $('progTitle').textContent = 'Creating ' + name + '…';
+  $('createBtn').disabled = true; setProg(steps, 0);
+  $('prog').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  var stage = 0;
+  try {
+    var cv = document.createElement('canvas'); cv.width = cv.height = 512; drawIcon(cv, name, color, iconImg);
+    var data = cv.toDataURL('image/png').split(',')[1];
+    var path = '/repos/' + cfg.repo + '/contents/inbox/' + key + '/icon-512.png';
+    var ex = await api(path + '?ref=' + encodeURIComponent(cfg.branch), { allow404: true });
+    var body = { message: 'Icon for ' + key, content: data, branch: cfg.branch }; if (ex && ex.sha) body.sha = ex.sha;
+    await api(path, { method: 'PUT', body: body });
+    stage = 1; setProg(steps, 1);
+    var t0 = Date.now() - 8000;
+    var inputs = { key: key, name: name, tagline: $('fTag').value.trim(), template: tmpl, color: color, description: $('fDesc').value.trim() || $('fTag').value.trim(), category: $('fCat').value, brief: $('fBrief').value.trim() };
+    await api('/repos/' + cfg.repo + '/actions/workflows/new-app.yml/dispatches', { method: 'POST', body: { ref: cfg.branch, inputs: inputs }, noJson: true })
+      .then(function (r) { if (r.status !== 204) return r.text().then(function (t) { throw new Error('GitHub ' + r.status + ': ' + t.slice(0, 200)); }); });
+    stage = 2; setProg(steps, 2);
+    var run = null;
+    for (var i = 0; i < 90; i++) {
+      await sleep(4000);
+      var rs = await api('/repos/' + cfg.repo + '/actions/workflows/new-app.yml/runs?event=workflow_dispatch&per_page=5');
+      run = (rs.workflow_runs || []).filter(function (r) { return new Date(r.created_at).getTime() >= t0; })[0] || null;
+      if (run && run.status === 'completed') break;
+    }
+    if (!run || run.status !== 'completed') throw new Error('The factory is taking long. Check the Activity tab.');
+    if (run.conclusion !== 'success') { var err = new Error('The factory could not create the app (' + run.conclusion + ').'); err.url = run.html_url; throw err; }
+    setProg(steps, 4);
+    $('progTitle').textContent = name + ' is created';
+    $('aiPrompt').textContent = 'Open my private app-factory repo (' + cfg.repo + ') and read AGENTS.md. Build the app "' + name + '" (apps/' + key + ') exactly as described in apps/' + key + '/BRIEF.md: replace the placeholder content, finish its privacy policy, then run python3 scripts/factory.py check ' + key + ' --release and tell me when it is ready to build and release.';
+    $('done').hidden = false; loadApps();
+  } catch (e) {
+    setProg(steps, stage, true);
+    $('createErr').innerHTML = '';
+    $('createErr').textContent = why(e) + (e.url ? '\n' : '');
+    if (e.url) { var a = el('a', null, 'Open the failed run on GitHub'); a.href = e.url; a.target = '_blank'; a.rel = 'noopener'; $('createErr').appendChild(a); }
+  }
+  $('createBtn').disabled = false;
+};
+function copyText(t) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(function () { toast('Copied'); }, function () { fallbackCopy(t); });
+  fallbackCopy(t);
+}
+function fallbackCopy(t) { var a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); toast('Copied'); } catch (e) { toast('Select and copy manually'); } a.remove(); }
+$('copyPrompt').onclick = function () { copyText($('aiPrompt').textContent); };
+$('goApps').onclick = function () { tab('apps'); };
+
+/* ---------- my apps ---------- */
+function aiPromptFor(a) {
+  return 'Open my private app-factory repo (' + cfg.repo + ') and read AGENTS.md. Work on the app "' + a.name + '" (apps/' + a.key + '). If apps/' + a.key + '/BRIEF.md exists, build exactly that. Finish it, run python3 scripts/factory.py check ' + a.key + ' --release and tell me when it is ready to build and release.';
+}
+async function loadApps() {
+  var box = $('appList'); $('appsNote').hidden = true;
+  try {
+    var list = await api('/repos/' + cfg.repo + '/contents/apps?ref=' + encodeURIComponent(cfg.branch), { allow404: true });
+    list = (list || []).filter(function (f) { return f.type === 'dir'; });
+    var out = await Promise.all(list.map(async function (f) {
+      try {
+        var j = await api('/repos/' + cfg.repo + '/contents/apps/' + f.name + '/app.json?ref=' + encodeURIComponent(cfg.branch));
+        var app = JSON.parse(unb64(j.content)); app.key = app.key || f.name;
+        var idx = await api('/repos/' + cfg.repo + '/contents/apps/' + f.name + '/www/index.html?ref=' + encodeURIComponent(cfg.branch), { raw: true, allow404: true }).catch(function () { return ''; });
+        app._placeholder = !!idx && /BUILD YOUR APP HERE|App content goes here/.test(idx);
+        return app;
+      } catch (e) { return null; }
+    }));
+    apps = out.filter(Boolean);
+  } catch (e) { box.textContent = ''; $('appsNote').hidden = false; $('appsNote').textContent = why(e); return; }
+  box.textContent = '';
+  if (!apps.length) { $('appsNote').hidden = false; $('appsNote').textContent = 'No apps yet. Create your first one in the New app tab.'; return; }
+  apps.forEach(function (a) {
+    var c = el('div', 'app'), top = el('div', 'top');
+    var ic = el('div', 'ic', (a.name || '?')[0].toUpperCase()); ic.style.background = a.themeColor || '#7C3AED';
+    var tx = el('div'); tx.appendChild(el('h3', null, a.name)); tx.appendChild(el('small', null, a.package + ' · v' + a.versionName + ' (' + a.versionCode + ')'));
+    top.append(ic, tx); c.appendChild(top);
+    var st = (a.listing || {}).status || 'draft';
+    c.appendChild(el('span', 'chip ' + (st === 'draft' ? '' : 'ok'), st === 'published' ? 'On Google Play' : st === 'github' ? 'Released on GitHub' : 'Draft'));
+    if (a._placeholder) c.appendChild(el('span', 'chip warn', 'Not built yet: ask the AI'));
+    if ((a.unity || {}).testMode) c.appendChild(el('span', 'chip', 'Ad test mode'));
+    var row = el('div', 'row');
+    var b1 = el('button', 'btn alt', 'Test build'), b2 = el('button', 'btn', 'Build & release'), b3 = el('button', 'btn ghost', 'Copy AI request');
+    b1.onclick = function () { build(a, false); }; b2.onclick = function () { build(a, true); }; b3.onclick = function () { copyText(aiPromptFor(a)); };
+    row.append(b1, b2, b3); c.appendChild(row); box.appendChild(c);
+  });
+}
+async function build(a, release) {
+  if (release && !confirm_('Build and publish a PUBLIC GitHub release of "' + a.name + '"?')) return;
+  try {
+    await api('/repos/' + cfg.repo + '/actions/workflows/build.yml/dispatches', { method: 'POST', body: { ref: cfg.branch, inputs: { app: a.key, release: release ? 'true' : 'false' } }, noJson: true })
+      .then(function (r) { if (r.status !== 204) return r.text().then(function (t) { throw new Error('GitHub ' + r.status + ': ' + t.slice(0, 200)); }); });
+    toast('Build started'); tab('runs');
+  } catch (e) { toast(why(e)); }
+}
+var pendingConfirm = null;
+function confirm_(msg) { return window.__confirmOverride ? window.__confirmOverride(msg) : window.confirm(msg); }
+$('refreshApps').onclick = loadApps;
+
+/* ---------- activity ---------- */
+async function loadRuns() {
+  var box = $('runList');
+  try {
+    var rs = await api('/repos/' + cfg.repo + '/actions/runs?per_page=15');
+    box.textContent = '';
+    var list = rs.workflow_runs || [];
+    if (!list.length) { box.textContent = 'Nothing has run yet.'; return; }
+    list.forEach(function (r) {
+      var d = el('div', 'run'), s = el('span', 's ' + (r.status !== 'completed' ? 'go' : r.conclusion === 'success' ? 'ok' : 'bad'));
+      var w = el('div'), a = el('a', null, (r.name || 'Run') + ': ' + (r.display_title || '')); a.href = r.html_url; a.target = '_blank'; a.rel = 'noopener';
+      var when = new Date(r.created_at).toLocaleString();
+      w.append(a, el('small', null, (r.status !== 'completed' ? 'running…' : r.conclusion) + ' · ' + when));
+      d.append(s, w); box.appendChild(d);
+    });
+  } catch (e) { box.textContent = why(e); }
+}
+$('refreshRuns').onclick = loadRuns;
+
+/* ---------- start ---------- */
+refresh();
+var saved = lsGet();
+if (saved && saved.token) {
+  $('cRepo').value = saved.repo; $('cBranch').value = saved.branch;
+  connect(saved).catch(function (e) { $('cErr').textContent = why(e); showMain(false); });
+}
+})();
+</script>
+</body>
+</html>

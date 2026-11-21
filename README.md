@@ -13,7 +13,8 @@ apps.json                     registry: [{ "key", "name", "package" }]
 <appKey>/prompts.json         content rows for card-style apps (array)
 <appKey>/img/                 images uploaded from the admin page
 _template/                    defaults copied by app-factory/scripts/new-app.sh
-admin/index.html              admin page (GitHub-backed, app selector)
+admin/index.html              settings admin page (GitHub-backed, app selector)
+admin/factory.html            App Factory page: create a new app, start builds/releases, see activity
 tools/split-firebase.py       splits a Firebase export into the files above
 ```
 

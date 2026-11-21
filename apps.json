@@ -3,5 +3,10 @@
     "key": "prompt-book",
     "name": "Prompt Book",
     "package": "com.mkhanacademy.promptbookapp"
+  },
+  {
+    "key": "tip-calculator",
+    "name": "Tip Calculator",
+    "package": "com.mkhanacademy.tipcalculator"
   }
 ]

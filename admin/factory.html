@@ -499,7 +499,7 @@ function iconDialog(a) {
       var ex = await api(path + '?ref=' + encodeURIComponent(cfg.branch), { allow404: true });
       var body = { message: 'New icon for ' + a.key, content: data, branch: cfg.branch }; if (ex && ex.sha) body.sha = ex.sha;
       await api(path, { method: 'PUT', body: body });
-      m.close(); toast('Icon saved: it is used by the next build');
+      m.close(); toast('Icon saved: it is used by the next build'); loadApps();
     } catch (e) { err.textContent = why(e); save.disabled = false; save.textContent = 'Save icon'; }
   });
   b.appendChild(save);
@@ -540,6 +540,14 @@ function adsBar(a) {
   bar.onclick = function () { adsDialog(a); };
   return bar;
 }
+function loadCardIcon(a, box) {
+  fetch('https://api.github.com/repos/' + cfg.repo + '/contents/apps/' + a.key + '/store/icon-512.png?ref=' + encodeURIComponent(cfg.branch), { headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.blob() : null; })
+    .then(function (b) {
+      if (!b || !b.size) return;
+      var u = URL.createObjectURL(b); box.textContent = ''; box.style.background = '#fff url(' + u + ') center/cover no-repeat';
+    }).catch(function () {});
+}
 async function loadApps() {
   var box = $('appList'); $('appsNote').hidden = true;
   try {
@@ -561,6 +569,7 @@ async function loadApps() {
   apps.forEach(function (a) {
     var c = el('div', 'app'), top = el('div', 'top');
     var ic = el('div', 'ic', (a.name || '?')[0].toUpperCase()); ic.style.background = a.themeColor || '#7C3AED';
+    loadCardIcon(a, ic);
     var tx = el('div'); tx.appendChild(el('h3', null, a.name)); tx.appendChild(el('small', null, a.package + ' · v' + a.versionName + ' (' + a.versionCode + ')'));
     top.append(ic, tx); c.appendChild(top);
     var st = (a.listing || {}).status || 'draft';

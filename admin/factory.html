@@ -471,6 +471,38 @@ function playDialog(a) {
   });
   b.appendChild(save);
 }
+function iconDialog(a) {
+  var m = modal('Icon: ' + a.name), b = m.body, img = null;
+  b.appendChild(el('div', 'hint', 'Pick a square PNG/JPG (512×512 or bigger). It becomes the Play Store icon and the app icon in the next build.'));
+  var fi = el('input'); fi.type = 'file'; fi.accept = 'image/*'; b.appendChild(fi);
+  var cv = document.createElement('canvas'); cv.width = cv.height = 512; cv.style.cssText = 'width:128px;height:128px;border-radius:24px;margin-top:12px;display:block;background:#222';
+  b.appendChild(cv);
+  var err = el('div', 'err'); b.appendChild(err);
+  fi.onchange = function () {
+    var f = fi.files && fi.files[0]; if (!f) return;
+    var im = new Image(); im.onload = function () {
+      img = im; var c = cv.getContext('2d'); c.clearRect(0, 0, 512, 512);
+      var side = Math.min(im.width, im.height), sx = (im.width - side) / 2, sy = (im.height - side) / 2;
+      c.drawImage(im, sx, sy, side, side, 0, 0, 512, 512);
+    };
+    im.onerror = function () { err.textContent = 'This file is not an image.'; };
+    im.src = URL.createObjectURL(f);
+  };
+  var save = btn('Save icon', 'big', async function () {
+    err.textContent = '';
+    if (!img) { err.textContent = 'Choose an image first.'; return; }
+    save.disabled = true; save.textContent = 'Saving…';
+    try {
+      var data = cv.toDataURL('image/png').split(',')[1];
+      var path = '/repos/' + cfg.repo + '/contents/apps/' + a.key + '/store/icon-512.png';
+      var ex = await api(path + '?ref=' + encodeURIComponent(cfg.branch), { allow404: true });
+      var body = { message: 'New icon for ' + a.key, content: data, branch: cfg.branch }; if (ex && ex.sha) body.sha = ex.sha;
+      await api(path, { method: 'PUT', body: body });
+      m.close(); toast('Icon saved: it is used by the next build');
+    } catch (e) { err.textContent = why(e); save.disabled = false; save.textContent = 'Save icon'; }
+  });
+  b.appendChild(save);
+}
 function adsBar(a) {
   var u = a.unity || {}, bar = el('div', 'adsbar');
   bar.title = 'Tap to edit ads';
@@ -544,7 +576,8 @@ async function loadApps() {
     b5.onclick = function () { versionDialog(a); }; b6.onclick = function () { featuresDialog(a); };
     var b7 = el('button', 'btn alt', 'Ads'); b7.onclick = function () { adsDialog(a); };
     var b8 = el('button', 'btn alt', 'Mark uploaded to Play'); b8.onclick = function () { playDialog(a); };
-    row.append(b1, b2, b5, b6, b7, b8, b3, b4); c.appendChild(row); box.appendChild(c);
+    var b9 = el('button', 'btn alt', 'Icon'); b9.onclick = function () { iconDialog(a); };
+    row.append(b1, b2, b5, b6, b7, b9, b8, b3, b4); c.appendChild(row); box.appendChild(c);
   });
 }
 async function build(a, release) {

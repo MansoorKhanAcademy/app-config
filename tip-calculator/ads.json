@@ -5,7 +5,7 @@
  "onExit": false,
  "onCopy": true,
  "onOpen": true,
- "banner": false,
+ "banner": true,
  "bannerPosition": "bottom",
  "interstitialEvery": 5,
  "minSecondsBetween": 60,

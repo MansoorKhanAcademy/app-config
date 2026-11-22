@@ -796,6 +796,7 @@ function moreDialog(a) {
     ['⬇️ Downloads (APK / AAB links)', function () { downloadsDialog(a); }],
     ['🏪 Store listing and details', function () { storeDialog(a); }],
     ['📋 Play pack (texts, Data safety, rating, graphic)', function () { playPackDialog(a); }],
+    ['🌐 Website page and Play link', function () { websiteDialog(a); }],
     ['✅ Release checklist', function () { checklistDialog(a); }],
     ['🎨 Icon', function () { iconDialog(a); }],
     ['▶️ Mark uploaded to Google Play', function () { playDialog(a); }],
@@ -1136,6 +1137,33 @@ async function playPackDialog(a) {
     var u = URL.createObjectURL(blob); img.src = u; note.textContent = 'Using ' + which + '. Your own upload (Store listing) always wins.';
     var dl = document.createElement('a'); dl.href = u; dl.download = a.key + '-feature-graphic.png'; dl.textContent = 'Download the graphic'; dl.style.cssText = 'display:block;padding:8px 0;color:var(--acc);font-weight:600'; b.appendChild(dl);
   } else note.textContent = 'No graphic found.';
+}
+/* ----- website landing page ----- */
+async function websiteDialog(a) {
+  var m = modal('Website page: ' + a.name), b = m.body, li = a.listing || {};
+  var url = 'https://' + ownerName().toLowerCase() + '.github.io/apps/' + a.key + '/';
+  b.appendChild(el('div', 'hint', 'Every release builds a landing page with the icon, description, features, screenshots, download buttons, privacy link, WhatsApp and email. Data safety and rating answers are never published.'));
+  b.appendChild(linkEl(url, url));
+  b.appendChild(el('label', null, 'Google Play link (add it only when the app is live on Play)'));
+  var pi = textInput(li.playUrl || '', 'https://play.google.com/store/apps/details?id=' + (a.package || '')); b.appendChild(pi);
+  b.appendChild(el('div', 'hint', 'Leave it empty while the app is in review: the page then shows only the GitHub download. Clearing the link hides the Play button again.'));
+  var err = el('div', 'err');
+  var go = btn('Save and update the website page', 'big', async function () {
+    err.textContent = ''; var v = pi.value.trim();
+    if (v && !/^https:\/\/play\.google\.com\//.test(v)) { err.textContent = 'This is not a Google Play link.'; return; }
+    go.disabled = true; go.textContent = 'Working… (about a minute)';
+    try {
+      var ap = 'apps/' + a.key + '/app.json', f = await getText(ap), o = JSON.parse(f.text); o.listing = o.listing || {};
+      if (v) { o.listing.playUrl = v; o.listing.status = 'published'; }
+      else { delete o.listing.playUrl; if (o.listing.status === 'published') o.listing.status = o.listing.githubUrl ? 'github' : (o.listing.status || 'draft'); }
+      await putText(ap, JSON.stringify(o, null, indentOf(f.text)) + '\n', 'Play link for ' + a.key, f.sha);
+      var run = await runWorkflow('landing-page.yml', { app: a.key }, 60);
+      if (run.conclusion !== 'success') throw failRun('The website page run failed.', run);
+      toast('Website page updated'); m.close(); loadApps();
+    } catch (e) { err.textContent = why(e); go.disabled = false; go.textContent = 'Save and update the website page'; }
+  });
+  b.appendChild(go); b.appendChild(err);
+  b.appendChild(el('div', 'hint', 'GitHub Pages can take 1 to 2 minutes to show the change.'));
 }
 async function removeApp(a, b) {
   var st = (a.listing || {}).status || 'draft';

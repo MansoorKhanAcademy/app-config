@@ -65,6 +65,7 @@ input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-we
 .app .top{display:flex;gap:12px;align-items:center}.app .ic{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;flex:none}
 .app h3{margin:0;font-size:17px;line-height:1.2}.app small{color:var(--mute)}
 .chip{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--soft);color:var(--acc);margin:10px 6px 0 0}
+.verbar{margin-top:12px;border:1px solid var(--soft);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7}.verbar b{font-weight:700}.verbar .bad{color:var(--warn)}.verbar .good{color:var(--ok)}
 .adsbar{margin-top:12px;border:1px solid var(--soft);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7;cursor:pointer}.adsbar b{font-weight:700}.adsbar .bad{color:var(--warn)}.adsbar .good{color:var(--ok)}.adsbar .hd{font-weight:700;margin-bottom:2px}
 .chip.ok{background:rgba(5,150,105,.14);color:var(--ok)}.chip.warn{background:rgba(217,119,6,.15);color:var(--warn)}
 .app .row{margin-top:12px}.app .btn{padding:9px 12px;font-size:13px}
@@ -433,6 +434,43 @@ $('goApps').onclick = function () { tab('apps'); };
 function aiPromptFor(a) {
   return 'Open my private app-factory repo (' + cfg.repo + ') and read AGENTS.md. Work on the app "' + a.name + '" (apps/' + a.key + '). If apps/' + a.key + '/BRIEF.md exists, build exactly that. Finish it, run python3 scripts/factory.py check ' + a.key + ' --release and tell me when it is ready to build and release.';
 }
+function verBar(a) {
+  var li = a.listing || {}, d = el('div', 'verbar');
+  var released = !!(li.githubUrl || li.status === 'github' || li.status === 'published');
+  var gh = li.githubVersionCode, play = li.playVersionCode;
+  function line(label, txt, cls) { var r = el('div'); r.appendChild(el('b', null, label + ': ')); r.appendChild(el('span', cls || '', txt)); d.appendChild(r); }
+  line('Next build', 'v' + a.versionName + ' (code ' + a.versionCode + ')');
+  if (gh != null) line('On GitHub', 'v' + (li.githubVersionName || '?') + ' (code ' + gh + ')', a.versionCode > gh ? 'bad' : 'good');
+  else line('On GitHub', released ? 'released, code not recorded yet (saved at the next release)' : 'not released yet', released ? '' : 'bad');
+  if (play != null) line('On Google Play', 'v' + (li.playVersionName || '?') + ' (code ' + play + ')', a.versionCode > play ? 'bad' : 'good');
+  else line('On Google Play', 'not marked yet', 'bad');
+  var top = Math.max(gh || 0, play || 0);
+  if (top && a.versionCode <= top) d.appendChild(el('div', 'hint', 'The next build will automatically use code ' + (top + 1) + '.'));
+  return d;
+}
+function playDialog(a) {
+  var li = a.listing || {}, m = modal('Uploaded to Google Play: ' + a.name), b = m.body;
+  b.appendChild(el('div', 'hint', 'After you upload the .aab in Play Console, record its version code here so the next build always goes higher.'));
+  b.appendChild(el('label', null, 'Version code uploaded to Play'));
+  var ci = textInput(String(li.playVersionCode || a.versionCode)); ci.inputMode = 'numeric'; b.appendChild(ci);
+  b.appendChild(el('label', null, 'Version name'));
+  var vi = textInput(li.playVersionName || a.versionName); b.appendChild(vi);
+  var err = el('div', 'err'); b.appendChild(err);
+  var save = btn('Save', 'big', async function () {
+    var v = parseInt(ci.value, 10); err.textContent = '';
+    if (!(v > 0)) { err.textContent = 'Version code is a whole number.'; return; }
+    save.disabled = true; save.textContent = 'Saving…';
+    try {
+      var ap = 'apps/' + a.key + '/app.json', f = await getText(ap);
+      if (!f) throw new Error('app.json not found');
+      var o = JSON.parse(f.text); o.listing = o.listing || {};
+      o.listing.playVersionCode = v; o.listing.playVersionName = vi.value.trim() || a.versionName;
+      await putText(ap, JSON.stringify(o, null, indentOf(f.text)) + '\n', 'Play upload recorded for ' + a.key + ' (' + v + ')', f.sha);
+      m.close(); toast('Saved'); await loadApps();
+    } catch (e) { err.textContent = why(e); save.disabled = false; save.textContent = 'Save'; }
+  });
+  b.appendChild(save);
+}
 function adsBar(a) {
   var u = a.unity || {}, bar = el('div', 'adsbar');
   bar.title = 'Tap to edit ads';
@@ -496,6 +534,7 @@ async function loadApps() {
     c.appendChild(el('span', 'chip ' + (st === 'draft' ? '' : 'ok'), st === 'published' ? 'On Google Play' : st === 'github' ? 'Released on GitHub' : 'Draft'));
     if (a._placeholder) c.appendChild(el('span', 'chip warn', 'Not built yet: ask the AI'));
     if ((a.unity || {}).testMode) c.appendChild(el('span', 'chip', 'Ad test mode'));
+    c.appendChild(verBar(a));
     c.appendChild(adsBar(a));
     var row = el('div', 'row');
     var b1 = el('button', 'btn alt', 'Test build'), b2 = el('button', 'btn', 'Build & release'), b3 = el('button', 'btn ghost', 'Copy AI request');
@@ -504,7 +543,8 @@ async function loadApps() {
     var b5 = el('button', 'btn alt', 'New version'), b6 = el('button', 'btn alt', 'Features');
     b5.onclick = function () { versionDialog(a); }; b6.onclick = function () { featuresDialog(a); };
     var b7 = el('button', 'btn alt', 'Ads'); b7.onclick = function () { adsDialog(a); };
-    row.append(b1, b2, b5, b6, b7, b3, b4); c.appendChild(row); box.appendChild(c);
+    var b8 = el('button', 'btn alt', 'Mark uploaded to Play'); b8.onclick = function () { playDialog(a); };
+    row.append(b1, b2, b5, b6, b7, b8, b3, b4); c.appendChild(row); box.appendChild(c);
   });
 }
 async function build(a, release) {
@@ -543,8 +583,8 @@ function bumpVer(v, kind) {
 }
 function versionDialog(a) {
   var m = modal('New version: ' + a.name), b = m.body;
-  var cur = a.versionName || '1.0.0', code = parseInt(a.versionCode, 10) || 1;
-  b.appendChild(el('div', 'hint', 'Now: v' + cur + ' (code ' + code + ')'));
+  var cur = a.versionName || '1.0.0', code0 = parseInt(a.versionCode, 10) || 1, li0 = a.listing || {}, code = Math.max(code0, parseInt(li0.githubVersionCode, 10) || 0, parseInt(li0.playVersionCode, 10) || 0);
+  b.appendChild(el('div', 'hint', 'Now: v' + cur + ' (code ' + code0 + ')' + (code > code0 ? '. Last released/uploaded code: ' + code : '')));
   b.appendChild(el('label', null, 'What kind of update?'));
   var kinds = [['patch', 'Small fix'], ['minor', 'New features'], ['major', 'Big change']], kb = {}, row = el('div', 'row');
   var vIn = textInput(bumpVer(cur, 'minor')), cIn = textInput(String(code + 1));

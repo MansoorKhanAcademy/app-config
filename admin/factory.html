@@ -65,6 +65,7 @@ input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-we
 .app .top{display:flex;gap:12px;align-items:center}.app .ic{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;flex:none}
 .app h3{margin:0;font-size:17px;line-height:1.2}.app small{color:var(--mute)}
 .chip{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--soft);color:var(--acc);margin:10px 6px 0 0}
+.adsbar{margin-top:12px;border:1px solid var(--soft);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7;cursor:pointer}.adsbar b{font-weight:700}.adsbar .bad{color:var(--warn)}.adsbar .good{color:var(--ok)}.adsbar .hd{font-weight:700;margin-bottom:2px}
 .chip.ok{background:rgba(5,150,105,.14);color:var(--ok)}.chip.warn{background:rgba(217,119,6,.15);color:var(--warn)}
 .app .row{margin-top:12px}.app .btn{padding:9px 12px;font-size:13px}
 .run{display:flex;gap:10px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}.run:first-child{border-top:0}
@@ -432,6 +433,42 @@ $('goApps').onclick = function () { tab('apps'); };
 function aiPromptFor(a) {
   return 'Open my private app-factory repo (' + cfg.repo + ') and read AGENTS.md. Work on the app "' + a.name + '" (apps/' + a.key + '). If apps/' + a.key + '/BRIEF.md exists, build exactly that. Finish it, run python3 scripts/factory.py check ' + a.key + ' --release and tell me when it is ready to build and release.';
 }
+function adsBar(a) {
+  var u = a.unity || {}, bar = el('div', 'adsbar');
+  bar.title = 'Tap to edit ads';
+  function line(label, items) {
+    var d = el('div'); d.appendChild(el('b', null, label + ': '));
+    items.forEach(function (it, i) { if (i) d.appendChild(document.createTextNode(' · ')); d.appendChild(el('span', it[1] || '', it[0])); });
+    return d;
+  }
+  bar.appendChild(el('div', 'hd', 'Ads (tap to edit)'));
+  var admobReal = a.admobAppId && a.admobAppId !== TEST_ADMOB_APP;
+  bar.appendChild(line('In app', [
+    ['Unity ID ' + (u.gameId ? u.gameId : 'missing'), u.gameId ? 'good' : 'bad'],
+    ['Test mode ' + (u.testMode !== false ? 'ON' : 'OFF'), u.testMode !== false ? 'bad' : 'good'],
+    ['AdMob app ID ' + (admobReal ? 'real' : 'test'), admobReal ? 'good' : '']
+  ]));
+  var live = line('Live', [['loading…']]); bar.appendChild(live);
+  (async function () {
+    try {
+      var f = await getText(a.key + '/ads.json', cfgRepo());
+      if (!f) throw new Error('none');
+      var o = JSON.parse(f.text), on = o.enabled === true || o.enabled === 'true', net = String(o.network || 'unity').toLowerCase() === 'admob' ? 'admob' : 'unity';
+      var bn = o.banner === true || o.banner === 'true', ids = !!(o.admobBannerId || o.admobInterstitialId);
+      var nl = line('Live', [
+        ['Ads ' + (on ? 'ON' : 'OFF'), on ? 'good' : 'bad'],
+        ['Network ' + net],
+        ['Banner ' + (bn ? 'on' : 'off')],
+        ['AdMob units ' + (ids ? 'set' : 'not set'), net === 'admob' && !ids ? 'bad' : '']
+      ]);
+      bar.replaceChild(nl, live);
+    } catch (e) {
+      var nl2 = line('Live', [['not available']]); bar.replaceChild(nl2, live);
+    }
+  })();
+  bar.onclick = function () { adsDialog(a); };
+  return bar;
+}
 async function loadApps() {
   var box = $('appList'); $('appsNote').hidden = true;
   try {
@@ -459,6 +496,7 @@ async function loadApps() {
     c.appendChild(el('span', 'chip ' + (st === 'draft' ? '' : 'ok'), st === 'published' ? 'On Google Play' : st === 'github' ? 'Released on GitHub' : 'Draft'));
     if (a._placeholder) c.appendChild(el('span', 'chip warn', 'Not built yet: ask the AI'));
     if ((a.unity || {}).testMode) c.appendChild(el('span', 'chip', 'Ad test mode'));
+    c.appendChild(adsBar(a));
     var row = el('div', 'row');
     var b1 = el('button', 'btn alt', 'Test build'), b2 = el('button', 'btn', 'Build & release'), b3 = el('button', 'btn ghost', 'Copy AI request');
     b1.onclick = function () { build(a, false); }; b2.onclick = function () { build(a, true); }; b3.onclick = function () { copyText(aiPromptFor(a)); };

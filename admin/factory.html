@@ -65,6 +65,7 @@ input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-we
 .app .top{display:flex;gap:12px;align-items:center}.app .ic{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:22px;flex:none}
 .app h3{margin:0;font-size:17px;line-height:1.2}.app small{color:var(--mute)}
 .chip{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--soft);color:var(--acc);margin:10px 6px 0 0}
+.okc{color:var(--ok)}.badc{color:var(--warn)}.note.bad{color:var(--warn)}
 .verbar{margin-top:12px;border:1px solid var(--soft);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7}.verbar b{font-weight:700}.verbar .bad{color:var(--warn)}.verbar .good{color:var(--ok)}
 .adsbar{margin-top:12px;border:1px solid var(--soft);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.7;cursor:pointer}.adsbar b{font-weight:700}.adsbar .bad{color:var(--warn)}.adsbar .good{color:var(--ok)}.adsbar .hd{font-weight:700;margin-bottom:2px}
 .chip.ok{background:rgba(5,150,105,.14);color:var(--ok)}.chip.warn{background:rgba(217,119,6,.15);color:var(--warn)}
@@ -566,22 +567,23 @@ async function loadApps() {
     c.appendChild(el('span', 'chip ' + (st === 'draft' ? '' : 'ok'), st === 'published' ? 'On Google Play' : st === 'github' ? 'Released on GitHub' : 'Draft'));
     if (a._placeholder) c.appendChild(el('span', 'chip warn', 'Not built yet: ask the AI'));
     if ((a.unity || {}).testMode) c.appendChild(el('span', 'chip', 'Ad test mode'));
+    var rb = el('div'); rb.id = 'run-' + a.key; c.appendChild(rb);
     c.appendChild(verBar(a));
     c.appendChild(adsBar(a));
     var row = el('div', 'row');
     var b1 = el('button', 'btn alt', 'Test build'), b2 = el('button', 'btn', 'Build & release'), b3 = el('button', 'btn ghost', 'Copy AI request');
-    b1.onclick = function () { build(a, false); }; b2.onclick = function () { build(a, true); }; b3.onclick = function () { copyText(aiPromptFor(a)); };
+    b1.onclick = function () { build(a, false); }; b2.onclick = function () { releaseDialog(a); }; b3.onclick = function () { copyText(aiPromptFor(a)); };
     var b4 = el('button', 'btn danger', 'Delete'); b4.onclick = function () { removeApp(a, b4); };
     var b5 = el('button', 'btn alt', 'New version'), b6 = el('button', 'btn alt', 'Features');
     b5.onclick = function () { versionDialog(a); }; b6.onclick = function () { featuresDialog(a); };
     var b7 = el('button', 'btn alt', 'Ads'); b7.onclick = function () { adsDialog(a); };
-    var b8 = el('button', 'btn alt', 'Mark uploaded to Play'); b8.onclick = function () { playDialog(a); };
-    var b9 = el('button', 'btn alt', 'Icon'); b9.onclick = function () { iconDialog(a); };
-    row.append(b1, b2, b5, b6, b7, b9, b8, b3, b4); c.appendChild(row); box.appendChild(c);
+    var bm = el('button', 'btn alt', 'More tools'); bm.onclick = function () { moreDialog(a); };
+    row.append(b1, b2, b5, b7, bm, b4); c.appendChild(row); box.appendChild(c);
   });
+  loadRuns(); topBanners();
 }
-async function build(a, release) {
-  if (release && !confirm_('Build and publish a PUBLIC GitHub release of "' + a.name + '"?')) return;
+async function build(a, release, skipConfirm) {
+  if (release && !skipConfirm && !confirm_('Build and publish a PUBLIC GitHub release of "' + a.name + '"?')) return;
   try {
     await api('/repos/' + cfg.repo + '/actions/workflows/build.yml/dispatches', { method: 'POST', body: { ref: cfg.branch, inputs: { app: a.key, release: release ? 'true' : 'false' } }, noJson: true })
       .then(function (r) { if (r.status !== 204) return r.text().then(function (t) { throw new Error('GitHub ' + r.status + ': ' + t.slice(0, 200)); }); });
@@ -761,6 +763,299 @@ function adsDialog(a) {
     } catch (e) { err.textContent = (msg.length ? msg.join(' ') + '\n' : '') + why(e); save.disabled = false; save.textContent = 'Save'; }
   });
   b.appendChild(save);
+}
+/* ================= extra tools (downloads, store, checklist, config, backup, banners, build status) ================= */
+function putBin(path, data, msg) {
+  var p = '/repos/' + cfg.repo + '/contents/' + path;
+  return api(p + '?ref=' + encodeURIComponent(cfg.branch), { allow404: true }).then(function (ex) {
+    var body = { message: msg, content: data, branch: cfg.branch }; if (ex && ex.sha) body.sha = ex.sha;
+    return api(p, { method: 'PUT', body: body });
+  });
+}
+function fileB64(f) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(String(r.result).split(',')[1]); }; r.onerror = function () { rej(new Error('Could not read the file')); }; r.readAsDataURL(f); }); }
+function loadScript(src) { return new Promise(function (res, rej) { var s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = function () { rej(new Error('Could not load ' + src)); }; document.head.appendChild(s); }); }
+function ownerName() { return cfg.repo.split('/')[0]; }
+function linkEl(href, text) { var a = document.createElement('a'); a.href = href; a.target = '_blank'; a.rel = 'noopener'; a.textContent = text; a.style.cssText = 'display:block;padding:8px 0;color:var(--acc);font-weight:600;overflow-wrap:anywhere'; return a; }
+function copyBtn(label, text) { return btn(label, 'alt', function () { copyText(text); }); }
+function privacyUrl(a) { return 'https://' + ownerName().toLowerCase() + '.github.io/apps/' + a.key + '/privacy-policy/'; }
+
+/* ----- more tools menu ----- */
+function moreDialog(a) {
+  var m = modal('Tools: ' + a.name), b = m.body, g = el('div', 'row');
+  g.style.flexDirection = 'column';
+  [
+    ['⬇️ Downloads (APK / AAB links)', function () { downloadsDialog(a); }],
+    ['🏪 Store listing and details', function () { storeDialog(a); }],
+    ['✅ Release checklist', function () { checklistDialog(a); }],
+    ['🎨 Icon', function () { iconDialog(a); }],
+    ['▶️ Mark uploaded to Google Play', function () { playDialog(a); }],
+    ['⚙️ App config files (update, more apps, banners)', function () { configDialog(a); }],
+    ['📝 Features', function () { featuresDialog(a); }],
+    ['📦 Backup source (zip)', function () { backupApp(a); }],
+    ['🤖 Copy AI request', function () { copyText(aiPromptFor(a)); toast('Copied'); }]
+  ].forEach(function (x) { var bt = btn(x[0], 'alt', function () { m.close(); x[1](); }); bt.style.justifyContent = 'flex-start'; g.appendChild(bt); });
+  b.appendChild(g);
+}
+
+/* ----- release dialog with notes ----- */
+function releaseDialog(a) {
+  var m = modal('Build and release: ' + a.name), b = m.body;
+  b.appendChild(el('div', 'hint', 'Publishes a PUBLIC GitHub release of v' + a.versionName + '. The version code is raised automatically if needed.'));
+  b.appendChild(el('label', null, "What's new (one line each, shown in the release)"));
+  var notes = el('textarea'); notes.rows = 4; notes.placeholder = 'Fixed the tip rounding\nNew dark theme'; b.appendChild(notes);
+  var err = el('div', 'err'); b.appendChild(err);
+  var go = btn('Build and release', 'big', async function () {
+    go.disabled = true; go.textContent = 'Starting…'; err.textContent = '';
+    try {
+      var lines = notes.value.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+      var txt = (lines.length ? lines.map(function (l) { return '- ' + l; }).join('\n') : '- Update') + '\n';
+      var np = 'apps/' + a.key + '/RELEASE_NOTES.md', f = await getText(np);
+      await putText(np, txt, 'Release notes for ' + a.key, f && f.sha);
+      m.close(); await build(a, true, true);
+    } catch (e) { err.textContent = why(e); go.disabled = false; go.textContent = 'Build and release'; }
+  });
+  b.appendChild(go);
+}
+
+/* ----- downloads ----- */
+async function downloadsDialog(a) {
+  var m = modal('Downloads: ' + a.name), b = m.body, st = el('div', 'hint', 'Loading…'); b.appendChild(st);
+  try {
+    var tag = a.key + '-v' + a.versionName;
+    var rel = await api('/repos/' + ownerName() + '/app-releases/releases/tags/' + encodeURIComponent(tag), { allow404: true });
+    b.appendChild(el('label', null, 'GitHub release ' + tag));
+    if (rel && rel.assets && rel.assets.length) {
+      rel.assets.forEach(function (x) { b.appendChild(linkEl(x.browser_download_url, x.name + ' (' + Math.round(x.size / 1048576 * 10) / 10 + ' MB)')); });
+      b.appendChild(linkEl(rel.html_url, 'Open the release page'));
+    } else b.appendChild(el('div', 'hint', rel ? 'The release has no files.' : 'No release with this version yet.'));
+    var runs = await api('/repos/' + cfg.repo + '/actions/workflows/build.yml/runs?per_page=30&status=success');
+    var ok = (runs.workflow_runs || []).filter(function (w) { return (w.display_title || '').indexOf('Build ' + a.key) === 0; })[0];
+    b.appendChild(el('label', null, 'Last successful build'));
+    if (ok) { b.appendChild(linkEl(ok.html_url, 'Open the build page (the .aab and .apk are under Artifacts, kept 14 days)')); b.appendChild(el('div', 'hint', 'Finished ' + new Date(ok.updated_at).toLocaleString())); }
+    else b.appendChild(el('div', 'hint', 'No successful build found yet (builds started before this update have no app name in their title).'));
+    st.remove();
+  } catch (e) { st.textContent = why(e); }
+}
+
+/* ----- store listing, name, colour, feature graphic, screenshots ----- */
+async function storeDialog(a) {
+  var m = modal('Store listing: ' + a.name), b = m.body, li = a.listing || {};
+  function field(label, val, ph) { b.appendChild(el('label', null, label)); var i = textInput(val, ph); b.appendChild(i); return i; }
+  var nm = field('App name', a.name);
+  b.appendChild(el('div', 'hint', 'A new name appears in the app and on the website after the next release.'));
+  b.appendChild(el('label', null, 'Theme colour'));
+  var col = el('input'); col.type = 'color'; col.value = /^#[0-9a-fA-F]{6}$/.test(a.themeColor || '') ? a.themeColor : '#7C3AED'; b.appendChild(col);
+  var tg = field('Short description (Play limit 80 characters)', a.tagline || '');
+  var cnt = el('div', 'hint'); b.appendChild(cnt);
+  function upd() { cnt.textContent = tg.value.length + ' / 80'; cnt.style.color = tg.value.length > 80 ? 'var(--bad)' : ''; } tg.oninput = upd; upd();
+  b.appendChild(el('label', null, 'Full description (Play limit 4000 characters)'));
+  var ds = el('textarea'); ds.rows = 8; ds.value = li.description || ''; b.appendChild(ds);
+  var dc = el('div', 'hint'); b.appendChild(dc); function ud() { dc.textContent = ds.value.length + ' / 4000'; dc.style.color = ds.value.length > 4000 ? 'var(--bad)' : ''; } ds.oninput = ud; ud();
+  var cat = field('Category', li.category || '', 'Tools');
+  var err = el('div', 'err');
+  var save = btn('Save text and details', 'big', async function () {
+    err.textContent = '';
+    if (!nm.value.trim()) { err.textContent = 'The app needs a name.'; return; }
+    if (tg.value.length > 80) { err.textContent = 'Short description is over 80 characters.'; return; }
+    if (ds.value.length > 4000) { err.textContent = 'Full description is over 4000 characters.'; return; }
+    save.disabled = true; save.textContent = 'Saving…';
+    try {
+      var ap = 'apps/' + a.key + '/app.json', f = await getText(ap), o = JSON.parse(f.text); o.listing = o.listing || {};
+      o.name = nm.value.trim(); o.themeColor = col.value; o.tagline = tg.value.trim(); o.listing.description = ds.value.trim(); o.listing.category = cat.value.trim();
+      await putText(ap, JSON.stringify(o, null, indentOf(f.text)) + '\n', 'Store details for ' + a.key, f.sha);
+      m.close(); toast('Saved'); await loadApps();
+    } catch (e) { err.textContent = why(e); save.disabled = false; save.textContent = 'Save text and details'; }
+  });
+  b.appendChild(save); b.appendChild(err);
+
+  b.appendChild(el('label', null, 'Feature graphic (1024×500, cropped from your picture)'));
+  var fg = el('input'); fg.type = 'file'; fg.accept = 'image/*'; b.appendChild(fg);
+  var fgmsg = el('div', 'hint'); b.appendChild(fgmsg);
+  fg.onchange = function () {
+    var f = fg.files && fg.files[0]; if (!f) return;
+    var im = new Image(); im.onload = async function () {
+      try {
+        var cv = document.createElement('canvas'); cv.width = 1024; cv.height = 500; var c = cv.getContext('2d');
+        var r = Math.max(1024 / im.width, 500 / im.height), w = im.width * r, h = im.height * r; c.drawImage(im, (1024 - w) / 2, (500 - h) / 2, w, h);
+        fgmsg.textContent = 'Uploading…';
+        await putBin('apps/' + a.key + '/store/feature-graphic.png', cv.toDataURL('image/png').split(',')[1], 'Feature graphic for ' + a.key);
+        fgmsg.textContent = 'Feature graphic saved.';
+      } catch (e) { fgmsg.textContent = why(e); }
+    };
+    im.onerror = function () { fgmsg.textContent = 'This file is not an image.'; }; im.src = URL.createObjectURL(f);
+  };
+
+  b.appendChild(el('label', null, 'Screenshots (phone, 2 to 8)'));
+  var sp = el('input'); sp.type = 'file'; sp.accept = 'image/*'; sp.multiple = true; b.appendChild(sp);
+  var shotBox = el('div'); b.appendChild(shotBox);
+  var dir = 'apps/' + a.key + '/store/screenshots';
+  async function showShots() {
+    shotBox.textContent = '';
+    var list = await api('/repos/' + cfg.repo + '/contents/' + dir + '?ref=' + encodeURIComponent(cfg.branch), { allow404: true }).catch(function () { return null; });
+    (list || []).forEach(function (x) {
+      var r = el('div', 'feat'); r.appendChild(el('span', null, x.name));
+      var d = el('button', null, '✕'); d.onclick = async function () {
+        if (!confirm_('Delete ' + x.name + '?')) return;
+        try { await api('/repos/' + cfg.repo + '/contents/' + dir + '/' + x.name, { method: 'DELETE', body: { message: 'Remove screenshot', sha: x.sha, branch: cfg.branch } }); showShots(); } catch (e) { toast(why(e)); }
+      }; r.appendChild(d); shotBox.appendChild(r);
+    });
+    if (!list || !list.length) shotBox.appendChild(el('div', 'hint', 'No screenshots yet.'));
+  }
+  sp.onchange = async function () {
+    var fs = Array.prototype.slice.call(sp.files || []); if (!fs.length) return;
+    try {
+      for (var i = 0; i < fs.length; i++) {
+        toast('Uploading ' + (i + 1) + ' / ' + fs.length);
+        var ext = (/\.(png|jpe?g|webp)$/i.exec(fs[i].name) || ['.png'])[0].toLowerCase();
+        await putBin(dir + '/' + Date.now() + '-' + (i + 1) + ext, await fileB64(fs[i]), 'Screenshot for ' + a.key);
+      }
+      sp.value = ''; showShots();
+    } catch (e) { toast(why(e)); }
+  };
+  showShots();
+}
+
+/* ----- release checklist ----- */
+async function checklistDialog(a) {
+  var m = modal('Release checklist: ' + a.name), b = m.body; var wait = el('div', 'hint', 'Checking…'); b.appendChild(wait);
+  var li = a.listing || {}, u = a.unity || {}, ref = '?ref=' + encodeURIComponent(cfg.branch), base = '/repos/' + cfg.repo + '/contents/apps/' + a.key + '/';
+  var store = await api(base + 'store' + ref, { allow404: true }).catch(function () { return null; }) || [];
+  var shots = await api(base + 'store/screenshots' + ref, { allow404: true }).catch(function () { return null; }) || [];
+  var pp = await api(base + 'store/privacy-policy.html' + ref, { raw: true, allow404: true }).catch(function () { return ''; }) || '';
+  var live = false; try { live = (await fetch(privacyUrl(a), { method: 'HEAD', cache: 'no-store' })).ok; } catch (e) {}
+  var names = store.map(function (x) { return x.name; });
+  var auto = [
+    ['Short description set (80 characters or less)', !!a.tagline && a.tagline.length <= 80],
+    ['Full description written', (li.description || '').length >= 80],
+    ['Store icon 512×512', names.indexOf('icon-512.png') >= 0],
+    ['Feature graphic 1024×500', names.some(function (n) { return /feature/i.test(n); })],
+    ['At least 2 screenshots', shots.length >= 2],
+    ['Privacy policy finished', !!pp && pp.indexOf('<!-- AI:') < 0],
+    ['Privacy policy page is online', live],
+    ['Unity Game ID set', !!u.gameId],
+    ['Unity test mode is OFF', u.testMode === false],
+    ['Released on GitHub (code recorded)', li.githubVersionCode != null],
+    ['Current version code uploaded to Play', li.playVersionCode != null && li.playVersionCode >= a.versionCode]
+  ];
+  var checks = Object.assign({}, li.checks || {});
+  var manual = [['dataSafety', 'Data safety submitted (declare Unity Ads data types)'], ['contentRating', 'Content rating questionnaire done'], ['countries', 'Countries / regions chosen'], ['listingPasted', 'Store text, icon, screenshots added in Play Console']];
+  wait.remove();
+  var done = auto.filter(function (x) { return x[1]; }).length;
+  b.appendChild(el('div', 'hint', done + ' of ' + auto.length + ' automatic checks pass.'));
+  auto.forEach(function (x) { var r = el('div', 'feat'); r.appendChild(el('span', x[1] ? 'okc' : 'badc', (x[1] ? '✅ ' : '⚠️ ') + x[0])); b.appendChild(r); });
+  b.appendChild(el('label', null, 'Play Console steps (tick when done)'));
+  var chain = Promise.resolve();
+  manual.forEach(function (x) {
+    var r = el('div', 'feat'), c = el('input'); c.type = 'checkbox'; c.checked = !!checks[x[0]];
+    c.onchange = function () {
+      checks[x[0]] = c.checked;
+      chain = chain.then(async function () {
+        var ap = 'apps/' + a.key + '/app.json', f = await getText(ap), o = JSON.parse(f.text); o.listing = o.listing || {}; o.listing.checks = Object.assign({}, checks);
+        await putText(ap, JSON.stringify(o, null, indentOf(f.text)) + '\n', 'Checklist for ' + a.key, f.sha);
+      }).catch(function (e) { toast(why(e)); });
+    };
+    r.append(c, el('span', null, x[1])); b.appendChild(r);
+  });
+  b.appendChild(el('label', null, 'Copy for Play Console'));
+  var row = el('div', 'row');
+  row.append(copyBtn('Privacy policy URL', privacyUrl(a)), copyBtn('Short description', a.tagline || ''), copyBtn('Full description', li.description || ''), copyBtn('Package name', a.package || ''));
+  b.appendChild(row);
+  b.appendChild(el('div', 'hint', privacyUrl(a)));
+}
+
+/* ----- app-config files (update.json, moreApps.json, banners.json ...) ----- */
+function configDialog(a) {
+  var m = modal('App config: ' + a.name), b = m.body;
+  b.appendChild(el('div', 'hint', 'Saved in app-config/' + a.key + '/ . Apps read these without a rebuild. moreApps.json entries named auto-… are filled by the factory.'));
+  var sel = el('select'); ['update.json', 'moreApps.json', 'banners.json', 'newCategories.json'].forEach(function (n) { var o = el('option', null, n); o.value = n; sel.appendChild(o); }); b.appendChild(sel);
+  var ta = el('textarea'); ta.rows = 14; ta.style.cssText = 'min-height:260px;font-family:monospace;font-size:13px;margin-top:10px'; ta.spellcheck = false; b.appendChild(ta);
+  var info = el('div', 'hint'); b.appendChild(info);
+  var err = el('div', 'err'); b.appendChild(err);
+  var cur = null;
+  async function load() {
+    err.textContent = ''; info.textContent = 'Loading…'; ta.value = ''; ta.disabled = true;
+    try {
+      cur = await getText(a.key + '/' + sel.value, cfgRepo());
+      if (cur) { ta.value = cur.text; info.textContent = ''; }
+      else { ta.value = '[]\n'; info.textContent = 'This file does not exist yet. Saving creates it.'; }
+      ta.disabled = false;
+    } catch (e) { info.textContent = /40[134]/.test(String(e.message)) ? 'This token cannot reach ' + cfgRepo() + ': add that repository (Contents: Read and write) to the token.' : why(e); }
+  }
+  sel.onchange = load; load();
+  var save = btn('Save file', 'big', async function () {
+    err.textContent = '';
+    var parsed; try { parsed = JSON.parse(ta.value); } catch (e) { err.textContent = 'This is not valid JSON: ' + e.message; return; }
+    save.disabled = true; save.textContent = 'Saving…';
+    try {
+      var ind = cur ? indentOf(cur.text) : 2;
+      await putText(a.key + '/' + sel.value, JSON.stringify(parsed, null, ind) + '\n', sel.value + ' for ' + a.key, cur && cur.sha, cfgRepo());
+      toast('Saved ' + sel.value); await load();
+    } catch (e) { err.textContent = why(e); }
+    save.disabled = false; save.textContent = 'Save file';
+  });
+  b.appendChild(save);
+}
+
+/* ----- source backup zip (no keystores) ----- */
+async function backupApp(a) {
+  try {
+    toast('Preparing the backup…');
+    if (!window.JSZip) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    var tree = await api('/repos/' + cfg.repo + '/git/trees/' + encodeURIComponent(cfg.branch) + '?recursive=1');
+    var files = (tree.tree || []).filter(function (t) { return t.type === 'blob' && t.path.indexOf('apps/' + a.key + '/') === 0 && !/\.(jks|keystore|p12|pem|key)$/i.test(t.path) && !/secret|password/i.test(t.path); });
+    if (!files.length) { toast('No files found for this app.'); return; }
+    var zip = new JSZip();
+    for (var i = 0; i < files.length; i += 6) {
+      await Promise.all(files.slice(i, i + 6).map(function (t) { return api('/repos/' + cfg.repo + '/git/blobs/' + t.sha).then(function (bl) { zip.file(t.path, bl.content.replace(/\s/g, ''), { base64: true }); }); }));
+      toast('Backup: ' + Math.min(i + 6, files.length) + ' / ' + files.length);
+    }
+    var blob = await zip.generateAsync({ type: 'blob' }), url = URL.createObjectURL(blob), l = document.createElement('a');
+    l.href = url; l.download = a.key + '-source-' + new Date().toISOString().slice(0, 10) + '.zip'; document.body.appendChild(l); l.click(); l.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000); toast('Backup downloaded (keystores are never included).');
+  } catch (e) { toast(why(e)); }
+}
+
+/* ----- top banners: token expiry + keystore backup reminder ----- */
+async function topBanners() {
+  var box = $('topBanners');
+  if (!box) { box = el('div'); box.id = 'topBanners'; $('appList').parentNode.insertBefore(box, $('appList')); }
+  box.textContent = '';
+  try {
+    var f = await getText('factory.config.json');
+    var exp = f && JSON.parse(f.text).releasesTokenExpires;
+    if (exp) {
+      var days = Math.ceil((new Date(exp + 'T23:59:59') - Date.now()) / 864e5);
+      if (days < 0) box.appendChild(el('div', 'note bad', 'RELEASES_TOKEN expired on ' + exp + '. Releases will fail until you renew it (GitHub > Settings > Developer settings > Fine-grained tokens > Regenerate, then: gh secret set RELEASES_TOKEN --repo ' + cfg.repo + ').'));
+      else if (days <= 14) box.appendChild(el('div', 'note bad', 'RELEASES_TOKEN expires in ' + days + ' day' + (days === 1 ? '' : 's') + ' (' + exp + '). Renew it before then.'));
+    }
+  } catch (e) {}
+  var last = null; try { last = localStorage.getItem('factoryKeystoreBackup'); } catch (e) {}
+  var age = last ? (Date.now() - new Date(last)) / 864e5 : null;
+  if (age === null || age > 90) {
+    var n = el('div', 'note'); n.appendChild(el('span', null, 'Is your keystore (mka-upload.jks) backed up OFF this phone? ' + (last ? 'Last confirmed ' + last + '. ' : 'Never confirmed here. ')));
+    n.appendChild(btn('Yes, it is backed up', 'alt', function () { try { localStorage.setItem('factoryKeystoreBackup', new Date().toISOString().slice(0, 10)); } catch (e) {} n.remove(); }));
+    box.appendChild(n);
+  }
+}
+
+/* ----- latest build status on each card ----- */
+var runTimer = null;
+async function loadRuns() {
+  clearTimeout(runTimer);
+  try {
+    var r = await api('/repos/' + cfg.repo + '/actions/workflows/build.yml/runs?per_page=30'), seen = {}, active = false;
+    (r.workflow_runs || []).forEach(function (w) {
+      var mm = /^Build (\S+)/.exec(w.display_title || ''); if (!mm || seen[mm[1]]) return; seen[mm[1]] = 1;
+      var box = document.getElementById('run-' + mm[1]); if (!box) return;
+      box.textContent = '';
+      var running = w.status !== 'completed', ok = w.conclusion === 'success';
+      var lab = running ? '⏳ Build running…' : ok ? '✅ Last build OK' : w.conclusion === 'cancelled' ? '⚪ Last build cancelled' : '❌ Last build failed (tap for the log)';
+      var ch = document.createElement('a'); ch.href = w.html_url; ch.target = '_blank'; ch.rel = 'noopener'; ch.className = 'chip ' + (running ? '' : ok ? 'ok' : 'warn'); ch.textContent = lab + ' · ' + new Date(w.updated_at).toLocaleString();
+      ch.style.textDecoration = 'none'; box.appendChild(ch);
+      if (running) active = true;
+    });
+    if (active) runTimer = setTimeout(loadRuns, 20000);
+  } catch (e) {}
 }
 async function removeApp(a, b) {
   var st = (a.listing || {}).status || 'draft';

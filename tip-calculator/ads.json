@@ -1,5 +1,5 @@
 {
- "enabled": false,
+ "enabled": true,
  "network": "unity",
  "onStart": false,
  "onExit": false,
@@ -9,5 +9,7 @@
  "bannerPosition": "bottom",
  "interstitialEvery": 5,
  "minSecondsBetween": 60,
- "interstitialPlacement": "Interstitial_Android"
+ "interstitialPlacement": "Interstitial_Android",
+ "admobBannerId": "",
+ "admobInterstitialId": ""
 }

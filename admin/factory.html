@@ -889,8 +889,8 @@ async function storeDialog(a) {
         var cv = document.createElement('canvas'); cv.width = 1024; cv.height = 500; var c = cv.getContext('2d');
         var r = Math.max(1024 / im.width, 500 / im.height), w = im.width * r, h = im.height * r; c.drawImage(im, (1024 - w) / 2, (500 - h) / 2, w, h);
         fgmsg.textContent = 'Uploading…';
-        await putBin('apps/' + a.key + '/store/feature-graphic.png', cv.toDataURL('image/png').split(',')[1], 'Feature graphic for ' + a.key);
-        fgmsg.textContent = 'Feature graphic saved.';
+        await putBin('apps/' + a.key + '/store/feature-graphic-custom.png', cv.toDataURL('image/png').split(',')[1], 'Feature graphic for ' + a.key);
+        fgmsg.textContent = 'Saved. The website page and the Play pack use it from the next release or Generate. Without an upload the automatic graphic (made from the current icon) is used.';
       } catch (e) { fgmsg.textContent = why(e); }
     };
     im.onerror = function () { fgmsg.textContent = 'This file is not an image.'; }; im.src = URL.createObjectURL(f);
@@ -1131,10 +1131,11 @@ async function playPackDialog(a) {
     var r = await fetch('https://api.github.com/repos/' + cfg.repo + '/contents/' + base + name + '?ref=' + encodeURIComponent(cfg.branch), { headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' });
     return r.ok ? r.blob() : null;
   }
-  var blob = await fetchPng('feature-graphic.png'), which = 'your uploaded feature-graphic.png';
-  if (!blob) { blob = await fetchPng('feature-graphic-auto.png'); which = 'the automatic feature-graphic-auto.png'; }
+  var blob = await fetchPng('feature-graphic-custom.png'), which = 'your uploaded graphic';
+  if (!blob) { blob = await fetchPng('feature-graphic-auto.png'); which = 'the automatic graphic (made from the current icon)'; }
+  if (!blob) { blob = await fetchPng('feature-graphic.png'); which = 'an older feature-graphic.png'; }
   if (blob) {
-    var u = URL.createObjectURL(blob); img.src = u; note.textContent = 'Using ' + which + '. Your own upload (Store listing) always wins.';
+    var u = URL.createObjectURL(blob); img.src = u; note.textContent = 'Using ' + which + '. Upload your own in Store listing if you prefer.';
     var dl = document.createElement('a'); dl.href = u; dl.download = a.key + '-feature-graphic.png'; dl.textContent = 'Download the graphic'; dl.style.cssText = 'display:block;padding:8px 0;color:var(--acc);font-weight:600'; b.appendChild(dl);
   } else note.textContent = 'No graphic found.';
 }

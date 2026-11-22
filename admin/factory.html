@@ -795,6 +795,7 @@ function moreDialog(a) {
   [
     ['⬇️ Downloads (APK / AAB links)', function () { downloadsDialog(a); }],
     ['🏪 Store listing and details', function () { storeDialog(a); }],
+    ['📋 Play pack (texts, Data safety, rating, graphic)', function () { playPackDialog(a); }],
     ['✅ Release checklist', function () { checklistDialog(a); }],
     ['🎨 Icon', function () { iconDialog(a); }],
     ['▶️ Mark uploaded to Google Play', function () { playDialog(a); }],
@@ -937,6 +938,7 @@ async function checklistDialog(a) {
     ['Short description set (80 characters or less)', !!a.tagline && a.tagline.length <= 80],
     ['Full description written', (li.description || '').length >= 80],
     ['Store icon 512×512', names.indexOf('icon-512.png') >= 0],
+    ['Play pack generated (Data safety, rating answers)', names.indexOf('play-pack.json') >= 0],
     ['Feature graphic 1024×500', names.some(function (n) { return /feature/i.test(n); })],
     ['At least 2 screenshots', shots.length >= 2],
     ['Privacy policy finished', !!pp && pp.indexOf('<!-- AI:') < 0],
@@ -1065,6 +1067,75 @@ async function loadRuns() {
     });
     if (active) runTimer = setTimeout(loadRuns, 20000);
   } catch (e) {}
+}
+/* ----- Play pack: store texts, Data safety, content rating, declarations, feature graphic ----- */
+async function playPackDialog(a) {
+  var m = modal('Play pack: ' + a.name), b = m.body;
+  var base = 'apps/' + a.key + '/store/';
+  var st = el('div', 'hint', 'Loading…'); b.appendChild(st);
+  var pack = null;
+  try { var f = await getText(base + 'play-pack.json'); if (f) pack = JSON.parse(f.text); } catch (e) { st.textContent = why(e); return; }
+  st.remove();
+  var gen = btn(pack ? 'Generate again' : 'Generate the Play pack', 'big', async function () {
+    gen.disabled = true; gen.textContent = 'Working… (about a minute)';
+    try {
+      var run = await runWorkflow('play-pack.yml', { app: a.key }, 60);
+      if (run.conclusion !== 'success') throw failRun('The Play pack run failed.', run);
+      m.close(); playPackDialog(a);
+    } catch (e) { gen.disabled = false; gen.textContent = 'Generate the Play pack'; toast(why(e)); }
+  });
+  if (!pack) {
+    b.appendChild(el('div', 'hint', 'Nothing generated yet. It is made automatically at every build; you can also make it now.'));
+    b.appendChild(gen); return;
+  }
+  b.appendChild(el('div', 'hint', 'Made ' + pack.generatedAt + ' from app.json. Every build refreshes it. If you changed ads, tagline or features, tap Generate again.'));
+  (pack.warnings || []).forEach(function (w) { b.appendChild(el('div', 'note bad', '⚠️ ' + w)); });
+  b.appendChild(gen);
+
+  function section(t) { b.appendChild(el('label', null, t)); }
+  function row(label, val) {
+    var r = el('div', 'feat'); var s = el('span'); s.appendChild(el('b', null, label + ': ')); s.appendChild(document.createTextNode(val)); r.appendChild(s);
+    r.appendChild(btn('Copy', 'alt', function () { copyText(val); toast('Copied'); })); b.appendChild(r);
+  }
+  var L = pack.listing;
+  section('Store listing');
+  row('Title', L.title); row('Short description', L.shortDescription); row('Full description', L.fullDescription);
+  row('Category', L.category); row('Contact email', L.contactEmail); row('Website', L.website); row('Privacy policy URL', L.privacyPolicyUrl);
+
+  section('Data safety');
+  var d = pack.dataSafety;
+  b.appendChild(el('div', 'hint', 'Collects or shares data: Yes · Encrypted in transit: Yes · Users can ask for deletion: Yes'));
+  d.rows.forEach(function (r) {
+    var x = el('div', 'feat'), s = el('span'); s.appendChild(el('b', null, r.category + ' › ' + r.type)); s.appendChild(el('div', 'hint', 'Collected, Shared, not ephemeral, required · ' + r.purposes.join(', ')));
+    x.appendChild(s); b.appendChild(x);
+  });
+  var txt = d.rows.map(function (r) { return r.category + ' > ' + r.type + ': collected, shared, not ephemeral, required. Purposes: ' + r.purposes.join(', '); }).join('\n');
+  b.appendChild(copyBtn('Copy the whole table', txt));
+  d.notes.forEach(function (n) { b.appendChild(el('div', 'hint', '• ' + n)); });
+  d.sources.forEach(function (s) { b.appendChild(linkEl(s.url, 'Check: ' + s.name)); });
+
+  section('Content rating questionnaire');
+  var c = pack.contentRating;
+  b.appendChild(el('div', 'hint', 'Category: ' + c.category + ' · Email: ' + c.email));
+  Object.keys(c.answers).forEach(function (k) { var x = el('div', 'feat'); x.appendChild(el('span', null, k + ': ' + c.answers[k])); b.appendChild(x); });
+  b.appendChild(el('div', 'hint', c.note));
+
+  section('Other App content answers');
+  Object.keys(pack.declarations).forEach(function (k) { row(k, pack.declarations[k]); });
+
+  section('Feature graphic (1024×500)');
+  var img = el('img'); img.style.cssText = 'width:100%;border-radius:12px;margin-top:6px;background:#222'; b.appendChild(img);
+  var note = el('div', 'hint'); b.appendChild(note);
+  async function fetchPng(name) {
+    var r = await fetch('https://api.github.com/repos/' + cfg.repo + '/contents/' + base + name + '?ref=' + encodeURIComponent(cfg.branch), { headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' });
+    return r.ok ? r.blob() : null;
+  }
+  var blob = await fetchPng('feature-graphic.png'), which = 'your uploaded feature-graphic.png';
+  if (!blob) { blob = await fetchPng('feature-graphic-auto.png'); which = 'the automatic feature-graphic-auto.png'; }
+  if (blob) {
+    var u = URL.createObjectURL(blob); img.src = u; note.textContent = 'Using ' + which + '. Your own upload (Store listing) always wins.';
+    var dl = document.createElement('a'); dl.href = u; dl.download = a.key + '-feature-graphic.png'; dl.textContent = 'Download the graphic'; dl.style.cssText = 'display:block;padding:8px 0;color:var(--acc);font-weight:600'; b.appendChild(dl);
+  } else note.textContent = 'No graphic found.';
 }
 async function removeApp(a, b) {
   var st = (a.listing || {}).status || 'draft';

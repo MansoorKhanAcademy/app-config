@@ -9,5 +9,7 @@
  "bannerPosition": "bottom",
  "interstitialEvery": 5,
  "minSecondsBetween": 60,
- "interstitialPlacement": "Interstitial_Android"
+ "interstitialPlacement": "Interstitial_Android",
+ "admobBannerId": "",
+ "admobInterstitialId": ""
 }

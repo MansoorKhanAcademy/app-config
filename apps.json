@@ -8,10 +8,5 @@
     "key": "tip-calculator",
     "name": "Tip Calculator",
     "package": "com.mkhanacademy.tipcalculator"
-  },
-  {
-    "key": "invoice-stock-khata",
-    "name": "Invoice Stock Khata",
-    "package": "com.mkhanacademy.invoicestockkhata"
   }
 ]

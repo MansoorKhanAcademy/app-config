@@ -1,11 +1,12 @@
 {
- "enabled": false,
+ "enabled": true,
  "force": false,
  "minVersionCode": 1,
- "latestVersionCode": 1,
+ "latestVersionCode": 6,
  "latestVersionName": "1.0.0",
  "title": "Update available",
  "message": "A new version is available. Please update.",
  "buttonText": "Update now",
- "url": "https://play.google.com/store/apps/details?id=com.mkhanacademy.tipcalculator"
+ "url": "https://play.google.com/store/apps/details?id=com.mkhanacademy.tipcalculator",
+ "githubUrl": "https://github.com/MansoorKhanAcademy/app-releases/releases/tag/tip-calculator-v1.0.0"
 }

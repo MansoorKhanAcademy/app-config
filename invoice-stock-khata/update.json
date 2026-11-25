@@ -2,7 +2,7 @@
   "enabled": true,
   "force": false,
   "minVersionCode": 1,
-  "latestVersionCode": 5,
+  "latestVersionCode": 6,
   "latestVersionName": "1.0.0",
   "title": "Update available",
   "message": "A new version is available. Please update.",

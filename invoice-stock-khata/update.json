@@ -2,12 +2,12 @@
   "enabled": true,
   "force": false,
   "minVersionCode": 1,
-  "latestVersionCode": 6,
+  "latestVersionCode": 7,
   "latestVersionName": "1.0.0",
   "title": "Update available",
   "message": "A new version is available. Please update.",
   "buttonText": "Update now",
   "url": "https://play.google.com/store/apps/details?id=com.mkhanacademy.invoicestockkhata",
   "playVersionCode": 0,
-  "githubUrl": "https://github.com/MansoorKhanAcademy/app-releases/releases/tag/invoice-stock-khata-v1.1.1"
+  "githubUrl": "https://github.com/MansoorKhanAcademy/app-releases/releases/tag/invoice-stock-khata-v1.1.2"
 }

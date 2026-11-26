@@ -13,5 +13,10 @@
     "key": "invoice-stock-khata",
     "name": "Invoice Stock Khata",
     "package": "com.mkhanacademy.invoicestockkhata"
+  },
+  {
+    "key": "auto-post-ai",
+    "name": "Auto Post ai",
+    "package": "com.mkhanacademy.autopostai"
   }
 ]
